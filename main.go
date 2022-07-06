@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	SIZE_X = 400
-	SIZE_Y = 250
-	ZOOM   = 3
+	SIZE_X = 700
+	SIZE_Y = 500
+	ZOOM   = 2
 
 	MUTATE     = 50
-	LEN_GENOME = 50
+	LEN_GENOME = 40
 
 	MAX_GENOME = 5000
-	MAX_MOLD   = 10000
+	MAX_MOLD   = 20000
 
 	RIGHT = 0
 	TOP   = 1
@@ -35,7 +35,7 @@ const (
 	B   = LEN_GENOME*3 + 3
 
 	ENERGY_DAY  = 10
-	ENERGY_MOLD = 5000
+	ENERGY_MOLD = 50000
 
 	TIME_CELL = 200
 )
@@ -79,6 +79,13 @@ type Game struct {
 // generate one gen
 func rand_gen() int {
 	return (rand.Intn(LEN_GENOME+2))*rand.Intn(2) - 2
+}
+
+// generate random color for genome
+func rand_color(genome int) {
+	genomes[genome][R] = 10 + rand.Intn(130)
+	genomes[genome][G] = 10 + rand.Intn(130)
+	genomes[genome][B] = 10 + rand.Intn(130)
 }
 
 // x mod SIZE_X
@@ -135,6 +142,24 @@ func found_new_mold() int {
 	return new_mold
 }
 
+func delete_all() {
+	fmt.Println("Delete all!")
+	// delete all genomes
+	for i := 0; i < MAX_GENOME; i++ {
+		genomes[i][NUM] = 0
+	}
+	// delete all molds
+	for i := 0; i < MAX_MOLD; i++ {
+		molds[i].num = 0
+	}
+	// delete all cells
+	for i := 0; i < SIZE_X; i++ {
+		for j := 0; j < SIZE_Y; j++ {
+			cells[i][j].mold = 0
+		}
+	}
+}
+
 func generate_new_mold(x, y int) {
 	if cells[x][y].mold == 0 {
 		// found i for new genome and new mold
@@ -147,12 +172,10 @@ func generate_new_mold(x, y int) {
 				genomes[new_genome][i] = rand_gen()
 			}
 			genomes[new_genome][NUM] = 1
-			genomes[new_genome][R] = 10 + rand.Intn(130)
-			genomes[new_genome][G] = 10 + rand.Intn(130)
-			genomes[new_genome][B] = 10 + rand.Intn(130)
+			rand_color(new_genome)
 
 			// create new mold and cell
-			molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(50)}
+			molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(60)}
 			cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
 		}
 	}
@@ -171,7 +194,7 @@ func load_genom(x, y int) {
 		genomes[new_genome][NUM] = 1
 
 		// creadte mold and cell
-		molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(50)}
+		molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(60)}
 		cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
 	}
 }
@@ -193,10 +216,8 @@ func create_new_mold(x, y int) {
 				genomes[new_genome][i] = genomes[last_genome][i]
 			}
 			genomes[new_genome][NUM] = 1
-			// new color
-			genomes[new_genome][R] = 10 + rand.Intn(130)
-			genomes[new_genome][G] = 10 + rand.Intn(130)
-			genomes[new_genome][B] = 10 + rand.Intn(130)
+			rand_color(new_genome)
+
 			// mutate genome (5 gens)
 			if rand.Intn(MUTATE) == 0 {
 				for i := 0; i < 10; i++ {
@@ -204,11 +225,11 @@ func create_new_mold(x, y int) {
 				}
 			}
 			// create new mold
-			molds[new_mold] = Mold{new_genome, cells[x][y].time, 1, rand.Intn(50)}
+			molds[new_mold] = Mold{new_genome, cells[x][y].time, 1, rand.Intn(60)}
 		} else {
 			// create new mold
 			genomes[last_genome][NUM]++
-			molds[new_mold] = Mold{last_genome, cells[x][y].time, 1, rand.Intn(50)}
+			molds[new_mold] = Mold{last_genome, cells[x][y].time, 1, rand.Intn(60)}
 		}
 
 		// creade cell
@@ -385,9 +406,14 @@ func key_press() {
 		fmt.Println(ENERGY_LIGHT)
 	}
 
-	// вывод информации
+	// print info
 	if inpututil.IsKeyJustPressed(ebiten.KeyI) {
 		fmt.Println("time", TIME)
+	}
+
+	// delete all
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		delete_all()
 	}
 }
 
