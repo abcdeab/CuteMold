@@ -1,23 +1,29 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"image/color"
 	"math/rand"
 	"time"
 
+	"encoding/json"
+
 	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 )
 
 const (
-	SIZE_X = 700
-	SIZE_Y = 500
-	ZOOM   = 2
+	SIZE_X = 400
+	SIZE_Y = 200
+	ZOOM   = 3
 
 	MUTATE     = 50
-	LEN_GENOME = 40
+	LEN_GENOME = 50
 
 	MAX_GENOME = 5000
 	MAX_MOLD   = 20000
@@ -34,15 +40,29 @@ const (
 	G   = LEN_GENOME*3 + 2
 	B   = LEN_GENOME*3 + 3
 
-	ENERGY_DAY  = 10
-	ENERGY_MOLD = 50000
+	ENERGY_LIGHT_MAX = 20
+	ENERGY_DAY       = 10
+	ENERGY_MOLD      = 5000
 
 	TIME_CELL = 200
 )
 
-var ENERGY_LIGHT = 20
+// time and pause
 var TIME = 0
 var PAUSE = false
+
+// light parameter
+var ENERGY_LIGHT = 18
+var ENERGY_VISIAL_TIME = 0
+
+// for load gen in clipboard
+var mouse_gen [LEN_GENOME*3 + 4]int
+var MOUSE_COPY_TIME = -1000
+var MOUSE_LOAD_TIME = -1000
+var START_HELLO_TIME = true
+
+// font
+var NormalFont font.Face
 
 // position molds
 var cells [SIZE_X][SIZE_Y]Cell
@@ -54,9 +74,6 @@ var molds [MAX_MOLD]Mold
 // 3n+2 - rigrt growth
 // no bottom growth
 var genomes [MAX_GENOME][LEN_GENOME*3 + 4]int
-
-// for load gen in clipboard
-var mouse_gen [LEN_GENOME*3 + 4]int
 
 type Cell struct {
 	mold   int
@@ -142,23 +159,23 @@ func found_new_mold() int {
 	return new_mold
 }
 
-func delete_all() {
-	fmt.Println("Delete all!")
-	// delete all genomes
-	for i := 0; i < MAX_GENOME; i++ {
-		genomes[i][NUM] = 0
-	}
-	// delete all molds
-	for i := 0; i < MAX_MOLD; i++ {
-		molds[i].num = 0
-	}
-	// delete all cells
-	for i := 0; i < SIZE_X; i++ {
-		for j := 0; j < SIZE_Y; j++ {
-			cells[i][j].mold = 0
-		}
-	}
-}
+// func delete_all() {
+// 	fmt.Println("Delete all!")
+// 	// delete all genomes
+// 	for i := 0; i < MAX_GENOME; i++ {
+// 		genomes[i][NUM] = 0
+// 	}
+// 	// delete all molds
+// 	for i := 0; i < MAX_MOLD; i++ {
+// 		molds[i].num = 0
+// 	}
+// 	// delete all cells
+// 	for i := 0; i < SIZE_X; i++ {
+// 		for j := 0; j < SIZE_Y; j++ {
+// 			cells[i][j].mold = 0
+// 		}
+// 	}
+// }
 
 func generate_new_mold(x, y int) {
 	if cells[x][y].mold == 0 {
@@ -297,7 +314,7 @@ func neitherhood(x, y, dx, dy, dir int) (int, int) {
 		return mod_x(x - 1), y
 	}
 	// panic!
-	fmt.Println("Problem neitherhood")
+	fmt.Println("Problem neitherhood (panic!)")
 	return 0, 0
 }
 
@@ -389,6 +406,7 @@ func key_press() {
 		for i := 0; i < 300; i++ {
 			generate_new_mold(rand.Intn(SIZE_X), rand.Intn(SIZE_Y))
 		}
+		START_HELLO_TIME = false
 	}
 
 	// on/off pause
@@ -399,22 +417,45 @@ func key_press() {
 	// energy light
 	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		ENERGY_LIGHT--
-		fmt.Println(ENERGY_LIGHT)
+		if ENERGY_LIGHT < 0 {
+			ENERGY_LIGHT = 0
+		}
+		ENERGY_VISIAL_TIME = TIME
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		ENERGY_LIGHT++
-		fmt.Println(ENERGY_LIGHT)
+		if ENERGY_LIGHT > ENERGY_LIGHT_MAX {
+			ENERGY_LIGHT = ENERGY_LIGHT_MAX
+		}
+		ENERGY_VISIAL_TIME = TIME
 	}
 
 	// print info
-	if inpututil.IsKeyJustPressed(ebiten.KeyI) {
-		fmt.Println("time", TIME)
-	}
+	// if inpututil.IsKeyJustPressed(ebiten.KeyI) {
+	// 	num_g := 0
+	// 	for i := 0; i < MAX_GENOME; i++ {
+	// 		if genomes[i][NUM] != 0 {
+	// 			num_g++
+	// 		}
+	// 	}
+	// 	num_m := 0
+	// 	for i := 0; i < MAX_MOLD; i++ {
+	// 		if molds[i].num != 0 {
+	// 			num_m++
+	// 		}
+	// 	}
+	// 	fmt.Println("time", TIME, "genome", num_g, "mold", num_m)
+	// }
 
 	// delete all
-	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-		delete_all()
-	}
+	// if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+	// 	delete_all()
+	// }
+
+	// // FPS
+	// if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+	// 	fmt.Println(ebiten.CurrentFPS())
+	// }
 }
 
 func mouse_click() {
@@ -424,21 +465,31 @@ func mouse_click() {
 		x = int(x / ZOOM)
 		y = int(y / ZOOM)
 
-		// copy genom or add new mold next cursor
-		if cells[x][y].mold != 0 {
-			save, _ := json.Marshal(genomes[molds[cells[x][y].mold].genome])
-			clipboard.WriteAll(string(save)) //  text genome save in clipboard
-			fmt.Println("genome saved")
-		} else {
-			save, _ := clipboard.ReadAll()
-			err := json.Unmarshal([]byte(save), &mouse_gen) // text genome load in mouse_gen
-			if err != nil {
-				// no panic
-				fmt.Println("problem clickboard (no panic)")
+		// check position
+		if 0 <= x && x < SIZE_X && 0 <= y && y < SIZE_Y {
+			// copy genom or add new mold next cursor
+			if cells[x][y].mold != 0 {
+				save, _ := json.Marshal(genomes[molds[cells[x][y].mold].genome])
+				clipboard.WriteAll(string(save)) //  text genome save in clipboard
+				fmt.Println("genome saved")
+				MOUSE_COPY_TIME = TIME
+				MOUSE_LOAD_TIME = -1000
 			} else {
-				load_genom(x, y)
-				fmt.Println("genome loaded")
+				save, _ := clipboard.ReadAll()
+				err := json.Unmarshal([]byte(save), &mouse_gen) // text genome load in mouse_gen
+				if err != nil {
+					// no panic
+					fmt.Println("problem clickboard (no panic)")
+				} else {
+					load_genom(x, y)
+					fmt.Println("genome loaded")
+					MOUSE_LOAD_TIME = TIME
+					MOUSE_COPY_TIME = -1000
+					START_HELLO_TIME = false
+				}
 			}
+		} else {
+			fmt.Println("Problem mouse click (no panic)")
 		}
 	}
 }
@@ -457,6 +508,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.pixels = make([]byte, SIZE_X*SIZE_Y*ZOOM*ZOOM*4)
 	}
 
+	// draw cells
 	for x := 0; x < SIZE_X; x++ {
 		for y := 0; y < SIZE_Y; y++ {
 			if cells[x][y].mold != 0 {
@@ -499,8 +551,49 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 		}
 	}
+
+	// graw light
+	if TIME-ENERGY_VISIAL_TIME < 120 {
+		for x := 20; x < 20+ENERGY_LIGHT*16; x++ {
+			for y := 20; y < 40; y++ {
+				pic := (y*SIZE_X*ZOOM + x) * 4
+				g.pixels[pic] = 0xc0
+				g.pixels[pic+1] = 0xc3
+				g.pixels[pic+2] = 0x50
+				g.pixels[pic+3] = 0xff
+			}
+		}
+		for x := 20 + ENERGY_LIGHT*16; x < 20+ENERGY_LIGHT_MAX*16; x++ {
+			for y := 20; y < 40; y++ {
+				pic := (y*SIZE_X*ZOOM + x) * 4
+				g.pixels[pic] = 0x60
+				g.pixels[pic+1] = 0x60
+				g.pixels[pic+2] = 0x60
+				g.pixels[pic+3] = 0xff
+			}
+		}
+	}
+
 	// screen output
 	screen.ReplacePixels(g.pixels)
+
+	// graw text light
+	if TIME-ENERGY_VISIAL_TIME < 120 {
+		text.Draw(screen, fmt.Sprint(ENERGY_LIGHT), NormalFont, 20+ENERGY_LIGHT_MAX*8, 37, color.Black)
+	}
+
+	// graw copy/load
+	if TIME-MOUSE_COPY_TIME < 120 {
+		text.Draw(screen, "Genome saved in clipboard.", NormalFont, 20, 60, color.White)
+	}
+	if TIME-MOUSE_LOAD_TIME < 120 {
+		text.Draw(screen, "Genome loaded from clipboard.", NormalFont, 20, 60, color.White)
+	}
+
+	// graw start hello
+	if START_HELLO_TIME {
+		text.Draw(screen, "Press G to generate new molds", NormalFont, int(SIZE_X*ZOOM/2)-150, int(SIZE_Y*ZOOM/2), color.White)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -515,6 +608,15 @@ func main() {
 	// create window
 	ebiten.SetWindowSize(SIZE_X*ZOOM, SIZE_Y*ZOOM)
 	ebiten.SetWindowTitle("Cute mold")
+	//ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
+
+	// font for text on the screen
+	tt, _ := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	NormalFont, _ = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    20,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
 
 	// game run
 	game := &Game{}
