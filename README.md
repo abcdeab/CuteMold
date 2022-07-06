@@ -12,10 +12,8 @@ Left-click on the mold to copy genome to clipboard. Click on the void space to c
 
 ---
 
-To make the simulation work, you have to do:
+Requires [ebiten](https://github.com/rxi/lume) and [clipboard](github.com/atotto/clipboard). Thanks for making them!
 ```
 go get github.com/atotto/clipboard
 go get github.com/hajimehoshi/ebiten/v2
 ```
-
-Requires [ebiten](https://github.com/rxi/lume) and [clipboard](github.com/atotto/clipboard). Thanks for making them!
