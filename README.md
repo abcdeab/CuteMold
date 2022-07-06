@@ -7,5 +7,5 @@ Press G to generate new molds. Press Q/W to lessen/expand the amount of energy. 
 
 Left-click on the mold to copy genome to clipboard. Click on the void space to create a new mold with the genome saved to your clipboard.
 
-![image](https://user-images.githubusercontent.com/108512083/177534910-9bc86247-d0db-4d3f-ac4b-cd235778b70e.png)
+![image](https://user-images.githubusercontent.com/108512083/177535171-0304a63c-e724-4912-a26f-7911203028e0.png)
 ![image](https://user-images.githubusercontent.com/108512083/177507626-4a31e661-5aef-4326-80cc-6e43719566d7.png)
