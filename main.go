@@ -22,33 +22,39 @@ import (
 )
 
 const (
-	SIZE_X = 400
-	SIZE_Y = 200
-	ZOOM   = 3
+	// developer mode
+	DEVELOPER = false
 
+	// size window
+	ZOOM   = 4
+	SIZE_X = int(1300 / ZOOM)
+	SIZE_Y = int(700 / ZOOM)
+
+	// genomes patameters
 	MUTATE     = 50
 	LEN_GENOME = 50
-
-	MAX_GENOME = 5000
-	MAX_MOLD   = 20000
-
-	RIGHT = 0
-	TOP   = 1
-	LEFT  = 2
-
-	SPORE = -1
-	NONE  = -2
-
+	// places of special positions in the genome
 	NUM = LEN_GENOME * 3
 	R   = LEN_GENOME*3 + 1
 	G   = LEN_GENOME*3 + 2
 	B   = LEN_GENOME*3 + 3
+	// direction
+	RIGHT = 0
+	TOP   = 1
+	LEFT  = 2
+	// specific genes
+	SPORE = -1
+	NONE  = -2
 
+	// limiting the amount of mold
+	MAX_GENOME = 5000
+	MAX_MOLD   = 20000
+
+	// light patameners
 	ENERGY_LIGHT_MAX = 20
 	ENERGY_DAY       = 10
 	ENERGY_MOLD      = 5000
-
-	TIME_CELL = 200
+	TIME_CELL        = 240
 )
 
 // time and pause
@@ -57,12 +63,12 @@ var PAUSE = false
 
 // light parameter
 var ENERGY_LIGHT = 18
-var ENERGY_VISIAL_TIME = 0
+var ENERGY_VISIAL_TIME = 300
 
 // for load gen in clipboard
 var mouse_gen [LEN_GENOME*3 + 4]int
-var MOUSE_COPY_TIME = -1000
-var MOUSE_LOAD_TIME = -1000
+var TEXT = "Press Q/W to increase/decrease the light."
+var TEXT_TIME = 300
 var START_HELLO_TIME = true
 
 // font
@@ -142,7 +148,10 @@ func found_new_genome() int {
 	}
 	// check num genome
 	if new_genome >= MAX_GENOME {
-		fmt.Println("Panic! Too much genome!")
+		TEXT_TIME = TIME
+		TEXT = "Panic! Too much genome!"
+		//fmt.Println("Panic! Too much genome!")
+
 	}
 	return new_genome
 }
@@ -158,28 +167,30 @@ func found_new_mold() int {
 	}
 	// chech num mold
 	if new_mold >= MAX_MOLD {
-		fmt.Println("Panic! Too much mold!")
+		TEXT_TIME = TIME
+		TEXT = "Panic! Too much mold!"
+		//fmt.Println("Panic! Too much mold!")
 	}
 	return new_mold
 }
 
-// func delete_all() {
-// 	fmt.Println("Delete all!")
-// 	// delete all genomes
-// 	for i := 0; i < MAX_GENOME; i++ {
-// 		genomes[i][NUM] = 0
-// 	}
-// 	// delete all molds
-// 	for i := 0; i < MAX_MOLD; i++ {
-// 		molds[i].num = 0
-// 	}
-// 	// delete all cells
-// 	for i := 0; i < SIZE_X; i++ {
-// 		for j := 0; j < SIZE_Y; j++ {
-// 			cells[i][j].mold = 0
-// 		}
-// 	}
-// }
+func delete_all() {
+	fmt.Println("Delete all!")
+	// delete all genomes
+	for i := 0; i < MAX_GENOME; i++ {
+		genomes[i][NUM] = 0
+	}
+	// delete all molds
+	for i := 0; i < MAX_MOLD; i++ {
+		molds[i].num = 0
+	}
+	// delete all cells
+	for i := 0; i < SIZE_X; i++ {
+		for j := 0; j < SIZE_Y; j++ {
+			cells[i][j].mold = 0
+		}
+	}
+}
 
 func generate_new_mold(x, y int) {
 	if cells[x][y].mold == 0 {
@@ -318,7 +329,9 @@ func neitherhood(x, y, dx, dy, dir int) (int, int) {
 		return mod_x(x - 1), y
 	}
 	// panic!
-	fmt.Println("Problem neitherhood (panic!)")
+	TEXT_TIME = TIME
+	TEXT = "Panic! I can't find my neighbor!"
+	// fmt.Println("Panic! I can't find my neighbor!")
 	return 0, 0
 }
 
@@ -435,31 +448,31 @@ func key_press() {
 	}
 
 	// print info
-	// if inpututil.IsKeyJustPressed(ebiten.KeyI) {
-	// 	num_g := 0
-	// 	for i := 0; i < MAX_GENOME; i++ {
-	// 		if genomes[i][NUM] != 0 {
-	// 			num_g++
-	// 		}
-	// 	}
-	// 	num_m := 0
-	// 	for i := 0; i < MAX_MOLD; i++ {
-	// 		if molds[i].num != 0 {
-	// 			num_m++
-	// 		}
-	// 	}
-	// 	fmt.Println("time", TIME, "genome", num_g, "mold", num_m)
-	// }
+	if inpututil.IsKeyJustPressed(ebiten.KeyI) && DEVELOPER {
+		num_g := 0
+		for i := 0; i < MAX_GENOME; i++ {
+			if genomes[i][NUM] != 0 {
+				num_g++
+			}
+		}
+		num_m := 0
+		for i := 0; i < MAX_MOLD; i++ {
+			if molds[i].num != 0 {
+				num_m++
+			}
+		}
+		fmt.Println("time", TIME, "genome", num_g, "mold", num_m)
+	}
 
 	// delete all
-	// if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-	// 	delete_all()
-	// }
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) && DEVELOPER {
+		delete_all()
+	}
 
-	// // FPS
-	// if inpututil.IsKeyJustPressed(ebiten.KeyF) {
-	// 	fmt.Println(ebiten.CurrentFPS())
-	// }
+	// FPS
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) && DEVELOPER {
+		fmt.Println(ebiten.CurrentFPS())
+	}
 }
 
 func mouse_click() {
@@ -475,25 +488,29 @@ func mouse_click() {
 			if cells[x][y].mold != 0 {
 				save, _ := json.Marshal(genomes[molds[cells[x][y].mold].genome])
 				clipboard.WriteAll(string(save)) //  text genome save in clipboard
-				fmt.Println("genome saved")
-				MOUSE_COPY_TIME = TIME
-				MOUSE_LOAD_TIME = -1000
+				//fmt.Println("Genome saved in clipboard.")
+				TEXT_TIME = TIME
+				TEXT = "Genome saved in clipboard."
 			} else {
 				save, _ := clipboard.ReadAll()
 				err := json.Unmarshal([]byte(save), &mouse_gen) // text genome load in mouse_gen
 				if err != nil {
 					// no panic
-					fmt.Println("problem clickboard (no panic)")
+					//fmt.Println("Can't load: no genome on the clipboard")
+					TEXT_TIME = TIME
+					TEXT = "Can't load: no genome on the clipboard."
 				} else {
 					load_genom(x, y)
-					fmt.Println("genome loaded")
-					MOUSE_LOAD_TIME = TIME
-					MOUSE_COPY_TIME = -1000
+					//fmt.Println("Genome loaded from clipboard.")
+					TEXT_TIME = TIME
+					TEXT = "Genome loaded from clipboard."
 					START_HELLO_TIME = false
 				}
 			}
 		} else {
-			fmt.Println("Problem mouse click (no panic)")
+			//fmt.Println("Click out of the world.")
+			TEXT_TIME = TIME
+			TEXT = "Click out of the world."
 		}
 	}
 }
@@ -581,22 +598,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// screen output
 	screen.ReplacePixels(g.pixels)
 
+	// graw start hello
+	if START_HELLO_TIME {
+		text.Draw(screen, "Press G to generate new molds", NormalFont, int(SIZE_X*ZOOM/2)-150, int(SIZE_Y*ZOOM/2), color.White)
+	}
+
 	// graw text light
 	if TIME-ENERGY_VISIAL_TIME < 120 {
 		text.Draw(screen, fmt.Sprint(ENERGY_LIGHT), NormalFont, 20+ENERGY_LIGHT_MAX*8, 37, color.Black)
 	}
 
 	// graw copy/load
-	if TIME-MOUSE_COPY_TIME < 120 {
-		text.Draw(screen, "Genome saved in clipboard.", NormalFont, 20, 60, color.White)
-	}
-	if TIME-MOUSE_LOAD_TIME < 120 {
-		text.Draw(screen, "Genome loaded from clipboard.", NormalFont, 20, 60, color.White)
-	}
-
-	// graw start hello
-	if START_HELLO_TIME {
-		text.Draw(screen, "Press G to generate new molds", NormalFont, int(SIZE_X*ZOOM/2)-150, int(SIZE_Y*ZOOM/2), color.White)
+	if TIME-TEXT_TIME < 120 {
+		text.Draw(screen, TEXT, NormalFont, 20, 60, color.White)
 	}
 }
 
