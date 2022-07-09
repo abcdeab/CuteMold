@@ -23,12 +23,15 @@ import (
 
 const (
 	// developer mode
-	DEVELOPER = false
+	DEVELOPER = true
 
 	// size window
-	ZOOM   = 4
-	SIZE_X = int(1300 / ZOOM)
-	SIZE_Y = int(700 / ZOOM)
+	WIN_X    = 1260
+	WIN_Y    = 660
+	ZOOM_MIM = 2
+	ZOOM_MAX = 6
+	SIZE_X   = int(WIN_X / ZOOM_MIM)
+	SIZE_Y   = int(WIN_Y / ZOOM_MIM)
 
 	// genomes patameters
 	MUTATE     = 50
@@ -56,6 +59,15 @@ const (
 	ENERGY_MOLD      = 5000
 	TIME_CELL        = 240
 )
+
+// ZOOM
+var ZOOM = 2
+var ZOOM_X = 0
+var ZOOM_Y = 0
+
+// camera
+var CAMERA_FLAG = false
+var camera_x, camera_y int
 
 // time and pause
 var TIME = 0
@@ -115,13 +127,27 @@ func rand_color(genome int) {
 	genomes[genome][B] = 10 + rand.Intn(130)
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // x mod SIZE_X
 func mod_x(x int) int {
 	if x >= SIZE_X {
-		return 0
+		return x - SIZE_X
 	}
 	if x < 0 {
-		return SIZE_X - 1
+		return x + SIZE_X
 	}
 	return x
 }
@@ -129,10 +155,10 @@ func mod_x(x int) int {
 // y mod SIZE_Y
 func mod_y(y int) int {
 	if y >= SIZE_Y {
-		return 0
+		return y - SIZE_Y
 	}
 	if y < 0 {
-		return SIZE_Y - 1
+		return y + SIZE_Y
 	}
 	return y
 }
@@ -175,7 +201,6 @@ func found_new_mold() int {
 }
 
 func delete_all() {
-	fmt.Println("Delete all!")
 	// delete all genomes
 	for i := 0; i < MAX_GENOME; i++ {
 		genomes[i][NUM] = 0
@@ -465,22 +490,39 @@ func key_press() {
 	}
 
 	// delete all
-	if inpututil.IsKeyJustPressed(ebiten.KeyD) && DEVELOPER {
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		delete_all()
+		TEXT_TIME = TIME
+		TEXT = "Delete all molds."
 	}
 
 	// FPS
 	if inpututil.IsKeyJustPressed(ebiten.KeyF) && DEVELOPER {
 		fmt.Println(ebiten.CurrentFPS())
 	}
+
+	// zoom camera
+	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+		ZOOM_Y = mod_y(ZOOM_Y + 1)
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+		ZOOM_Y = mod_y(ZOOM_Y - 1)
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		ZOOM_X = mod_x(ZOOM_X + 1)
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		ZOOM_X = mod_x(ZOOM_X - 1)
+	}
+
 }
 
 func mouse_click() {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		// cursor position
 		x, y := ebiten.CursorPosition()
-		x = int(x / ZOOM)
-		y = int(y / ZOOM)
+		x = mod_x(ZOOM_X + int(x/ZOOM))
+		y = mod_y(ZOOM_Y + int(y/ZOOM))
 
 		// check position
 		if 0 <= x && x < SIZE_X && 0 <= y && y < SIZE_Y {
@@ -513,6 +555,38 @@ func mouse_click() {
 			TEXT = "Click out of the world."
 		}
 	}
+
+	// change zoom
+	if !CAMERA_FLAG {
+		_, z := ebiten.Wheel()
+		x, y := ebiten.CursorPosition()
+		ZOOM_X = mod_x(ZOOM_X + int(x/ZOOM))
+		ZOOM_Y = mod_y(ZOOM_Y + int(y/ZOOM))
+
+		ZOOM += int(z)
+		ZOOM = max(ZOOM, ZOOM_MIM)
+		ZOOM = min(ZOOM, ZOOM_MAX)
+
+		ZOOM_X = mod_x(ZOOM_X - int(x/ZOOM))
+		ZOOM_Y = mod_y(ZOOM_Y - int(y/ZOOM))
+	}
+
+	// change cameta posion
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+		CAMERA_FLAG = true
+		x, y := ebiten.CursorPosition()
+		camera_x = mod_x(ZOOM_X + int(x/ZOOM))
+		camera_y = mod_y(ZOOM_Y + int(y/ZOOM))
+	}
+
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+		x, y := ebiten.CursorPosition()
+		ZOOM_X = mod_x(camera_x - int(x/ZOOM))
+		ZOOM_Y = mod_y(camera_y - int(y/ZOOM))
+	} else {
+		CAMERA_FLAG = false
+	}
+
 }
 
 func (g *Game) Update() error {
@@ -526,20 +600,23 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	// create pixels
 	if g.pixels == nil {
-		g.pixels = make([]byte, SIZE_X*SIZE_Y*ZOOM*ZOOM*4)
+		g.pixels = make([]byte, WIN_X*WIN_Y*4)
 	}
 
 	// draw cells
-	for x := 0; x < SIZE_X; x++ {
-		for y := 0; y < SIZE_Y; y++ {
-			if cells[x][y].mold != 0 {
-				// draw cell  spore
-				color_r := byte(genomes[molds[cells[x][y].mold].genome][R] + molds[cells[x][y].mold].color)
-				color_g := byte(genomes[molds[cells[x][y].mold].genome][G] + molds[cells[x][y].mold].color)
-				color_b := byte(genomes[molds[cells[x][y].mold].genome][B] + molds[cells[x][y].mold].color)
+	for x := 0; x < int(WIN_X/ZOOM); x++ {
+		for y := 0; y < int(WIN_Y/ZOOM); y++ {
+			x0 := mod_x(x + ZOOM_X)
+			y0 := mod_y(y + ZOOM_Y)
+
+			if cells[x0][y0].mold != 0 {
+				// draw cell
+				color_r := byte(genomes[molds[cells[x0][y0].mold].genome][R] + molds[cells[x0][y0].mold].color)
+				color_g := byte(genomes[molds[cells[x0][y0].mold].genome][G] + molds[cells[x0][y0].mold].color)
+				color_b := byte(genomes[molds[cells[x0][y0].mold].genome][B] + molds[cells[x0][y0].mold].color)
 				for i := 0; i < ZOOM; i++ {
 					for j := 0; j < ZOOM; j++ {
-						pic := ((y*ZOOM+j)*SIZE_X*ZOOM + x*ZOOM + i) * 4
+						pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
 						g.pixels[pic] = color_r
 						g.pixels[pic+1] = color_g
 						g.pixels[pic+2] = color_b
@@ -547,10 +624,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					}
 				}
 				// draw spore
-				if cells[x][y].n == SPORE {
+				if cells[x0][y0].n == SPORE {
 					for i := 1; i < ZOOM-1; i++ {
 						for j := 1; j < ZOOM-1; j++ {
-							pic := ((y*ZOOM+j)*SIZE_X*ZOOM + x*ZOOM + i) * 4
+							pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
 							g.pixels[pic] = 0
 							g.pixels[pic+1] = 0
 							g.pixels[pic+2] = 0
@@ -558,11 +635,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 						}
 					}
 				}
+
 			} else {
 				// draw nil cell
 				for i := 0; i < ZOOM; i++ {
 					for j := 0; j < ZOOM; j++ {
-						pic := ((y*ZOOM+j)*SIZE_X*ZOOM + x*ZOOM + i) * 4
+						pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
 						g.pixels[pic] = 0
 						g.pixels[pic+1] = 0
 						g.pixels[pic+2] = 0
@@ -577,7 +655,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if TIME-ENERGY_VISIAL_TIME < 120 {
 		for x := 20; x < 20+ENERGY_LIGHT*16; x++ {
 			for y := 20; y < 40; y++ {
-				pic := (y*SIZE_X*ZOOM + x) * 4
+				pic := (y*WIN_X + x) * 4
 				g.pixels[pic] = 0xc0
 				g.pixels[pic+1] = 0xc3
 				g.pixels[pic+2] = 0x50
@@ -586,7 +664,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		for x := 20 + ENERGY_LIGHT*16; x < 20+ENERGY_LIGHT_MAX*16; x++ {
 			for y := 20; y < 40; y++ {
-				pic := (y*SIZE_X*ZOOM + x) * 4
+				pic := (y*WIN_X + x) * 4
 				g.pixels[pic] = 0x60
 				g.pixels[pic+1] = 0x60
 				g.pixels[pic+2] = 0x60
@@ -600,7 +678,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// graw start hello
 	if START_HELLO_TIME {
-		text.Draw(screen, "Press G to generate new molds", NormalFont, int(SIZE_X*ZOOM/2)-150, int(SIZE_Y*ZOOM/2), color.White)
+		text.Draw(screen, "Press G to generate new molds", NormalFont, int(WIN_X/2)-150, int(WIN_Y/2), color.White)
 	}
 
 	// graw text light
@@ -616,7 +694,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	// size window
-	return SIZE_X * ZOOM, SIZE_Y * ZOOM
+	return WIN_X, WIN_Y
 }
 
 func main() {
@@ -624,7 +702,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	// create window
-	ebiten.SetWindowSize(SIZE_X*ZOOM, SIZE_Y*ZOOM)
+	ebiten.SetWindowSize(WIN_X, WIN_Y)
 	ebiten.SetWindowTitle("Cute mold")
 	//ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
 
