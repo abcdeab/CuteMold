@@ -3,13 +3,7 @@ Mold grow and evolution simulation. The mold gets energy for the void space arou
 
 Molds with the same genome have the same color, but different shades. Mold with a mutated genome get a new color. Cells with black dots are spores. 
 
-G to generate new molds.
-Q/W to decrease/increase energy of the voids.
-P to pause.
-D to delete all molds.
-Mouse wheel for zoom. Press the right mouse button to move the screen.
-Left mouse click to copy a genome to clipboard.
-Click on the empty space to create a new mold with the genome saved in your clipboard.
+G to generate new molds. D to delete all the molds. Q/W to decrease/increase energy of the voids. P to pause. F to fullscreen. Mouse wheel to zoom. Right mouse button to move the screen. Left mouse click to copy a genome to clipboard. Click on the empty space to create a new mold with the genome saved in your clipboard.
 
 You can share your molds in the comments by pasting their genomes as text! Show off your best molds! To see other people's molds, copy their genome to the clipboard, run the simulation, and click on a void. Give your molds time to become beautiful. Evolution isn't a quick process!
 
