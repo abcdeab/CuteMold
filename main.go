@@ -23,18 +23,21 @@ import (
 
 const (
 	// developer mode
-	DEVELOPER = true
+	DEVELOPER = false
 
 	// size window
-	WIN_X    = 1260
-	WIN_Y    = 660
+	WIN_X  = 1260
+	WIN_Y  = 660
+	SIZE_X = int(WIN_X / ZOOM_MIM)
+	SIZE_Y = int(WIN_Y / ZOOM_MIM)
+
+	// for zoom
 	ZOOM_MIM = 2
 	ZOOM_MAX = 6
-	SIZE_X   = int(WIN_X / ZOOM_MIM)
-	SIZE_Y   = int(WIN_Y / ZOOM_MIM)
 
+	// chance of mutation
+	MUTATE = 50
 	// genomes patameters
-	MUTATE     = 50
 	LEN_GENOME = 50
 	// places of special positions in the genome
 	NUM = LEN_GENOME * 3
@@ -57,34 +60,36 @@ const (
 	ENERGY_LIGHT_MAX = 20
 	ENERGY_DAY       = 10
 	ENERGY_MOLD      = 5000
-	TIME_CELL        = 240
+
+	// cell aging
+	TIME_CELL = 240
 )
 
-// ZOOM
-var ZOOM = 2
-var ZOOM_X = 0
-var ZOOM_Y = 0
+// zoom
+var zoom = 2
+var zoom_x = 0
+var zoom_y = 0
 
 // camera
-var CAMERA_FLAG = false
+var camera_flag = false
 var camera_x, camera_y int
 
 // time and pause
-var TIME = 0
-var PAUSE = false
+var world_time = 0
+var pause = false
 
 // light parameter
-var ENERGY_LIGHT = 18
-var ENERGY_VISIAL_TIME = 300
+var energy_light = 18
+var energy_visual_time = 300 // for screen
 
 // for load gen in clipboard
 var mouse_gen [LEN_GENOME*3 + 4]int
-var TEXT = "Press Q/W to increase/decrease the light."
-var TEXT_TIME = 300
-var START_HELLO_TIME = true
 
-// font
+// text
 var NormalFont font.Face
+var text_srting = "Press Q/W to increase/decrease the light."
+var text_time = 300
+var starting_text = true
 
 // position molds
 var cells [SIZE_X][SIZE_Y]Cell
@@ -113,18 +118,6 @@ type Mold struct {
 
 type Game struct {
 	pixels []byte
-}
-
-// generate one gen
-func rand_gen() int {
-	return (rand.Intn(LEN_GENOME+2))*rand.Intn(2) - 2
-}
-
-// generate random color for genome
-func rand_color(genome int) {
-	genomes[genome][R] = 10 + rand.Intn(130)
-	genomes[genome][G] = 10 + rand.Intn(130)
-	genomes[genome][B] = 10 + rand.Intn(130)
 }
 
 func max(a, b int) int {
@@ -163,6 +156,18 @@ func mod_y(y int) int {
 	return y
 }
 
+// generate one gen
+func rand_gen() int {
+	return (rand.Intn(LEN_GENOME+2))*rand.Intn(2) - 2
+}
+
+// generate random color for genome
+func rand_color(genome int) {
+	genomes[genome][R] = 10 + rand.Intn(130)
+	genomes[genome][G] = 10 + rand.Intn(130)
+	genomes[genome][B] = 10 + rand.Intn(130)
+}
+
 // found i new genome
 func found_new_genome() int {
 	new_genome := 1
@@ -174,8 +179,8 @@ func found_new_genome() int {
 	}
 	// check num genome
 	if new_genome >= MAX_GENOME {
-		TEXT_TIME = TIME
-		TEXT = "Panic! Too much genome!"
+		text_time = world_time
+		text_srting = "Panic! Too much genome!"
 		//fmt.Println("Panic! Too much genome!")
 
 	}
@@ -193,8 +198,8 @@ func found_new_mold() int {
 	}
 	// chech num mold
 	if new_mold >= MAX_MOLD {
-		TEXT_TIME = TIME
-		TEXT = "Panic! Too much mold!"
+		text_time = world_time
+		text_srting = "Panic! Too much mold!"
 		//fmt.Println("Panic! Too much mold!")
 	}
 	return new_mold
@@ -232,7 +237,7 @@ func generate_new_mold(x, y int) {
 			rand_color(new_genome)
 
 			// create new mold and cell
-			molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(60)}
+			molds[new_mold] = Mold{new_genome, energy_light * 10, 1, rand.Intn(60)}
 			cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
 		}
 	}
@@ -251,7 +256,7 @@ func load_genom(x, y int) {
 		genomes[new_genome][NUM] = 1
 
 		// creadte mold and cell
-		molds[new_mold] = Mold{new_genome, ENERGY_LIGHT * 10, 1, rand.Intn(60)}
+		molds[new_mold] = Mold{new_genome, energy_light * 10, 1, rand.Intn(60)}
 		cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
 	}
 }
@@ -354,8 +359,8 @@ func neitherhood(x, y, dx, dy, dir int) (int, int) {
 		return mod_x(x - 1), y
 	}
 	// panic!
-	TEXT_TIME = TIME
-	TEXT = "Panic! I can't find my neighbor!"
+	text_time = world_time
+	text_srting = "Panic! I can't find my neighbor!"
 	// fmt.Println("Panic! I can't find my neighbor!")
 	return 0, 0
 }
@@ -377,7 +382,7 @@ func growth_cell(x, y int) {
 func ph(x2, y2 int) (energy int) {
 	// empty cell next to it gives energy
 	if cells[x2][y2].mold == 0 {
-		return ENERGY_LIGHT
+		return energy_light
 	}
 	return 0
 }
@@ -406,7 +411,7 @@ func delete_cell(x, y int) {
 }
 
 func update() {
-	if !PAUSE {
+	if !pause {
 		// photosynthesis, food and aging
 		for x := 0; x < SIZE_X; x++ {
 			for y := 0; y < SIZE_Y; y++ {
@@ -448,28 +453,28 @@ func key_press() {
 		for i := 0; i < 300; i++ {
 			generate_new_mold(rand.Intn(SIZE_X), rand.Intn(SIZE_Y))
 		}
-		START_HELLO_TIME = false
+		starting_text = false
 	}
 
 	// on/off pause
 	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
-		PAUSE = !PAUSE
+		pause = !pause
 	}
 
 	// energy light
 	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
-		ENERGY_LIGHT--
-		if ENERGY_LIGHT < 0 {
-			ENERGY_LIGHT = 0
+		energy_light--
+		if energy_light < 0 {
+			energy_light = 0
 		}
-		ENERGY_VISIAL_TIME = TIME
+		energy_visual_time = world_time
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyW) {
-		ENERGY_LIGHT++
-		if ENERGY_LIGHT > ENERGY_LIGHT_MAX {
-			ENERGY_LIGHT = ENERGY_LIGHT_MAX
+		energy_light++
+		if energy_light > ENERGY_LIGHT_MAX {
+			energy_light = ENERGY_LIGHT_MAX
 		}
-		ENERGY_VISIAL_TIME = TIME
+		energy_visual_time = world_time
 	}
 
 	// print info
@@ -486,111 +491,101 @@ func key_press() {
 				num_m++
 			}
 		}
-		fmt.Println("time", TIME, "genome", num_g, "mold", num_m)
+		fmt.Println("time", world_time, "genome", num_g, "mold", num_m)
+		fmt.Println(ebiten.CurrentFPS())
 	}
 
 	// delete all
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		delete_all()
-		TEXT_TIME = TIME
-		TEXT = "Delete all molds."
+		text_time = world_time
+		text_srting = "Delete all molds."
 	}
 
-	// FPS
-	if inpututil.IsKeyJustPressed(ebiten.KeyF) && DEVELOPER {
-		fmt.Println(ebiten.CurrentFPS())
+	// toggle fullscreen
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+		ebiten.SetFullscreen(!ebiten.IsFullscreen())
 	}
 
-	// zoom camera
-	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
-		ZOOM_Y = mod_y(ZOOM_Y + 1)
+	// toggle fullscreen
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		ebiten.SetFullscreen(false)
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
-		ZOOM_Y = mod_y(ZOOM_Y - 1)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
-		ZOOM_X = mod_x(ZOOM_X + 1)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
-		ZOOM_X = mod_x(ZOOM_X - 1)
-	}
-
 }
 
 func mouse_click() {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		// cursor position
 		x, y := ebiten.CursorPosition()
-		x = mod_x(ZOOM_X + int(x/ZOOM))
-		y = mod_y(ZOOM_Y + int(y/ZOOM))
+		if 0 <= x && x < WIN_X && 0 <= y && y < WIN_Y {
+			x = mod_x(zoom_x + int(x/zoom))
+			y = mod_y(zoom_y + int(y/zoom))
 
-		// check position
-		if 0 <= x && x < SIZE_X && 0 <= y && y < SIZE_Y {
 			// copy genom or add new mold next cursor
 			if cells[x][y].mold != 0 {
 				save, _ := json.Marshal(genomes[molds[cells[x][y].mold].genome])
 				clipboard.WriteAll(string(save)) //  text genome save in clipboard
 				//fmt.Println("Genome saved in clipboard.")
-				TEXT_TIME = TIME
-				TEXT = "Genome saved in clipboard."
+				text_time = world_time
+				text_srting = "Genome saved in clipboard."
 			} else {
 				save, _ := clipboard.ReadAll()
 				err := json.Unmarshal([]byte(save), &mouse_gen) // text genome load in mouse_gen
 				if err != nil {
 					// no panic
 					//fmt.Println("Can't load: no genome on the clipboard")
-					TEXT_TIME = TIME
-					TEXT = "Can't load: no genome on the clipboard."
+					text_time = world_time
+					text_srting = "Can't load: no genome on the clipboard."
 				} else {
 					load_genom(x, y)
 					//fmt.Println("Genome loaded from clipboard.")
-					TEXT_TIME = TIME
-					TEXT = "Genome loaded from clipboard."
-					START_HELLO_TIME = false
+					text_time = world_time
+					text_srting = "Genome loaded from clipboard."
+					starting_text = false
 				}
 			}
 		} else {
 			//fmt.Println("Click out of the world.")
-			TEXT_TIME = TIME
-			TEXT = "Click out of the world."
+			text_time = world_time
+			text_srting = "Click out of the world."
 		}
 	}
 
 	// change zoom
-	if !CAMERA_FLAG {
+	if !camera_flag {
 		_, z := ebiten.Wheel()
 		x, y := ebiten.CursorPosition()
-		ZOOM_X = mod_x(ZOOM_X + int(x/ZOOM))
-		ZOOM_Y = mod_y(ZOOM_Y + int(y/ZOOM))
+		zoom_x = mod_x(zoom_x + int(x/zoom))
+		zoom_y = mod_y(zoom_y + int(y/zoom))
 
-		ZOOM += int(z)
-		ZOOM = max(ZOOM, ZOOM_MIM)
-		ZOOM = min(ZOOM, ZOOM_MAX)
+		zoom += int(z)
+		zoom = max(zoom, ZOOM_MIM)
+		zoom = min(zoom, ZOOM_MAX)
 
-		ZOOM_X = mod_x(ZOOM_X - int(x/ZOOM))
-		ZOOM_Y = mod_y(ZOOM_Y - int(y/ZOOM))
+		zoom_x = mod_x(zoom_x - int(x/zoom))
+		zoom_y = mod_y(zoom_y - int(y/zoom))
 	}
 
 	// change cameta posion
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
-		CAMERA_FLAG = true
+		camera_flag = true
 		x, y := ebiten.CursorPosition()
-		camera_x = mod_x(ZOOM_X + int(x/ZOOM))
-		camera_y = mod_y(ZOOM_Y + int(y/ZOOM))
+		camera_x = mod_x(zoom_x + int(x/zoom))
+		camera_y = mod_y(zoom_y + int(y/zoom))
 	}
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
 		x, y := ebiten.CursorPosition()
-		ZOOM_X = mod_x(camera_x - int(x/ZOOM))
-		ZOOM_Y = mod_y(camera_y - int(y/ZOOM))
+		zoom_x = mod_x(camera_x - int(x/zoom))
+		zoom_y = mod_y(camera_y - int(y/zoom))
 	} else {
-		CAMERA_FLAG = false
+		camera_flag = false
 	}
 
 }
 
 func (g *Game) Update() error {
-	TIME++
+	world_time++
 	mouse_click()
 	key_press()
 	update()
@@ -604,19 +599,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	// draw cells
-	for x := 0; x < int(WIN_X/ZOOM); x++ {
-		for y := 0; y < int(WIN_Y/ZOOM); y++ {
-			x0 := mod_x(x + ZOOM_X)
-			y0 := mod_y(y + ZOOM_Y)
+	for x := 0; x < int(WIN_X/zoom); x++ {
+		for y := 0; y < int(WIN_Y/zoom); y++ {
+			x0 := mod_x(x + zoom_x)
+			y0 := mod_y(y + zoom_y)
 
 			if cells[x0][y0].mold != 0 {
 				// draw cell
 				color_r := byte(genomes[molds[cells[x0][y0].mold].genome][R] + molds[cells[x0][y0].mold].color)
 				color_g := byte(genomes[molds[cells[x0][y0].mold].genome][G] + molds[cells[x0][y0].mold].color)
 				color_b := byte(genomes[molds[cells[x0][y0].mold].genome][B] + molds[cells[x0][y0].mold].color)
-				for i := 0; i < ZOOM; i++ {
-					for j := 0; j < ZOOM; j++ {
-						pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
+				for i := 0; i < zoom; i++ {
+					for j := 0; j < zoom; j++ {
+						pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
 						g.pixels[pic] = color_r
 						g.pixels[pic+1] = color_g
 						g.pixels[pic+2] = color_b
@@ -625,9 +620,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				}
 				// draw spore
 				if cells[x0][y0].n == SPORE {
-					for i := 1; i < ZOOM-1; i++ {
-						for j := 1; j < ZOOM-1; j++ {
-							pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
+					for i := 1; i < zoom-1; i++ {
+						for j := 1; j < zoom-1; j++ {
+							pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
 							g.pixels[pic] = 0
 							g.pixels[pic+1] = 0
 							g.pixels[pic+2] = 0
@@ -638,9 +633,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 			} else {
 				// draw nil cell
-				for i := 0; i < ZOOM; i++ {
-					for j := 0; j < ZOOM; j++ {
-						pic := ((y*ZOOM+j)*WIN_X + x*ZOOM + i) * 4
+				for i := 0; i < zoom; i++ {
+					for j := 0; j < zoom; j++ {
+						pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
 						g.pixels[pic] = 0
 						g.pixels[pic+1] = 0
 						g.pixels[pic+2] = 0
@@ -652,8 +647,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	// graw light
-	if TIME-ENERGY_VISIAL_TIME < 120 {
-		for x := 20; x < 20+ENERGY_LIGHT*16; x++ {
+	if world_time-energy_visual_time < 120 {
+		for x := 20; x < 20+energy_light*16; x++ {
 			for y := 20; y < 40; y++ {
 				pic := (y*WIN_X + x) * 4
 				g.pixels[pic] = 0xc0
@@ -662,7 +657,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				g.pixels[pic+3] = 0xff
 			}
 		}
-		for x := 20 + ENERGY_LIGHT*16; x < 20+ENERGY_LIGHT_MAX*16; x++ {
+		for x := 20 + energy_light*16; x < 20+ENERGY_LIGHT_MAX*16; x++ {
 			for y := 20; y < 40; y++ {
 				pic := (y*WIN_X + x) * 4
 				g.pixels[pic] = 0x60
@@ -677,18 +672,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.ReplacePixels(g.pixels)
 
 	// graw start hello
-	if START_HELLO_TIME {
+	if starting_text {
 		text.Draw(screen, "Press G to generate new molds", NormalFont, int(WIN_X/2)-150, int(WIN_Y/2), color.White)
 	}
 
 	// graw text light
-	if TIME-ENERGY_VISIAL_TIME < 120 {
-		text.Draw(screen, fmt.Sprint(ENERGY_LIGHT), NormalFont, 20+ENERGY_LIGHT_MAX*8, 37, color.Black)
+	if world_time-energy_visual_time < 120 {
+		text.Draw(screen, fmt.Sprint(energy_light), NormalFont, 20+ENERGY_LIGHT_MAX*8, 37, color.Black)
 	}
 
 	// graw copy/load
-	if TIME-TEXT_TIME < 120 {
-		text.Draw(screen, TEXT, NormalFont, 20, 60, color.White)
+	if world_time-text_time < 120 {
+		text.Draw(screen, text_srting, NormalFont, 20, 60, color.White)
 	}
 }
 
