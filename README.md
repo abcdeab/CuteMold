@@ -11,6 +11,7 @@ Mouse wheel for zoom. Press the right mouse button to move the screen.
 Left mouse click to copy a genome to clipboard.
 Click on the empty space to create a new mold with the genome saved in your clipboard.
 
+You can share your molds in the comments by pasting their genomes as text! Show off your best molds! To see other people's molds, copy their genome to the clipboard, run the simulation, and click on a void. Give your molds time to become beautiful. Evolution isn't a quick process!
 
 ![image](https://user-images.githubusercontent.com/108512083/177539565-39ab3136-3d84-47aa-900e-3da9efcd708f.png)
 ![pic1](https://user-images.githubusercontent.com/108512083/177720197-5578ffeb-b221-4fbf-a52a-8313ba533f46.png)
