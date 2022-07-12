@@ -1,373 +1,777 @@
-io.output():setvbuf("no")
-math.randomseed(os.time())
-love.window.setTitle("cute mold")
+package main
 
-lume = require "lume"
+import (
+	"encoding/base64"
+	"fmt"
+	"image"
+	"image/color"
+	_ "image/png"
+	"math/rand"
+	"strings"
+	"time"
 
-SIZE_X = 350
-SIZE_Y = 200
-ZOOM = 4
+	"encoding/json"
 
-LEN_GENOM = 50
-MUTATE = 30
-NONE = 0
-SPORE = -1
+	"github.com/atotto/clipboard"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+)
 
-VISUAL = true
-PAUSE = false
+const (
+	// developer mode
+	DEVELOPER = false
 
-ENERGY_LIGHT = 3
-ENERGY_DAY = 1
-ENERGY_MOLD = 200
+	// size window
+	WIN_X  = 1260
+	WIN_Y  = 660
+	SIZE_X = int(WIN_X / ZOOM_MIM)
+	SIZE_Y = int(WIN_Y / ZOOM_MIM)
 
-TIME_CELL = 100
-TIME = 0
+	// for zoom
+	ZOOM_MIM = 2
+	ZOOM_MAX = 6
 
---        top    right   bottom   left
-ROTATE = {{0,1}, {1,0}, {0,-1}, {-1,0}}
+	// chance of mutation
+	MUTATE = 50
+	// genomes patameters
+	LEN_GENOME = 50
+	// places of special positions in the genome
+	NUM = LEN_GENOME * 3
+	R   = LEN_GENOME*3 + 1
+	G   = LEN_GENOME*3 + 2
+	B   = LEN_GENOME*3 + 3
+	// direction
+	RIGHT = 0
+	TOP   = 1
+	LEFT  = 2
+	// specific genes
+	SPORE = -1
+	NONE  = -2
 
-love.window.setMode(SIZE_X*ZOOM, SIZE_Y*ZOOM)
-love.window.setVSync(1)
+	// limiting the amount of mold
+	MAX_GENOME = 5000
+	MAX_MOLD   = 20000
 
-function randon_flag()
-  return (math.random(2) == 1)
-end
+	// light patameners
+	ENERGY_LIGHT_MAX = 20
+	ENERGY_DAY       = 10
+	ENERGY_MOLD      = 5000
 
-function chouse_gen()
-  if math.random(LEN_GENOM) == 1 then
-    return SPORE
-  end
-  if randon_flag() then
-    return math.random(LEN_GENOM)
-  end
-  return NONE
-end
+	// cell aging
+	TIME_CELL = 240
+)
 
-function generate_mold(x,y,flag)
-  if cells[x][y] == nil then
-    local genom = #genoms + 1
-    
-    genoms[genom] = {}
-    genoms[genom]["num"] = 1
-    if flag then
-      genoms[genom]["color"] = mouse_genom.color 
-    else
-      genoms[genom]["color"] = {math.random()/2+0.2, math.random()/2+0.2, math.random()/2+0.2}
-    end
+// zoom
+var zoom = 2
+var zoom_x = 0
+var zoom_y = 0
 
-    for i=1, LEN_GENOM do
-      genoms[genom][i] = {}
-      for j=1, 4 do
-        if flag then
-          genoms[genom][i][j] = mouse_genom[i][j]
-        else
-          genoms[genom][i][j] = chouse_gen()
-        end
-      end
-    end
+// camera
+var camera_flag = false
+var camera_x, camera_y int
 
-    local mold = #molds + 1
-    molds[mold] = {}
-    
-    molds[mold]["color"] = genoms[genom].color
-    molds[mold]["gen"] = genom
-     
-    molds[mold]["e"] =  ENERGY_DAY*5
-    molds[mold]["num"] = 1
-    
-    cells[x][y] = {}
-    
-    cells[x][y]["dx"] = 0
-    cells[x][y]["dy"] = 1
-    
-    cells[x][y]["mold"] = mold
-    cells[x][y]["n"] = 1
-    
-    cells[x][y]["sleep"] = true
-    cells[x][y]["time"] = 0
-  end
-end
+// time and pause
+var world_time = 0
+var pause = false
 
-function new_molds(x,y)
-  local genom1 = molds[cells[x][y].mold].gen
+// light parameter
+var energy_light = 18
+var energy_visual_time = 300 // for screen
 
-  local mold1 = cells[x][y].mold
-  local mold2 = #molds + 1
-  
-  local dx = cells[x][y].dx
-  local dy = cells[x][y].dy
-  
-  molds[mold2] = {}
-  
-  if math.random(MUTATE) == 1 then
-    local genom2 = #genoms + 1
-    
-    genoms[genom2] = {}
-    genoms[genom2]["num"] = 1
-    genoms[genom2]["color"] = {math.random()/2+0.2, math.random()/2+0.2, math.random()/2+0.2}
-    
-    for i=1, LEN_GENOM do
-      genoms[genom2][i] = {}
-      for j=1, 4 do
-        genoms[genom2][i][j] = genoms[genom1][i][j]
-      end
-    end
-    for j=1, 4 do
-      genoms[genom2][math.random(LEN_GENOM)][j] = chouse_gen()
-    end
-    
-    molds[mold2]["gen"] = genom2
-    molds[mold2]["color"] = genoms[genom2].color
-    
-  else
-    genoms[genom1].num = genoms[genom1].num + 1
-    
-    molds[mold2]["gen"] = genom1
-    local c = (math.random() - 0.5) / 4
-    molds[mold2]["color"] = {genoms[genom1].color[1] + c, genoms[genom1].color[2] + c, genoms[genom1].color[3] + c}
-  end
-  
-  molds[mold2]["e"] = cells[x][y].time
-  molds[mold2]["num"] = 1
-  
-  cells[x][y] = {}
-  
-  cells[x][y]["dx"] = dx
-  cells[x][y]["dy"] = dy
-  
-  cells[x][y]["mold"] = mold2
-  cells[x][y]["n"] = 1
-  
-  cells[x][y]["sleep"] = true
-  cells[x][y]["time"] = 0
-end
+// for load gen in clipboard
+var mouse_gen [LEN_GENOME*3 + 4]int
 
-function add_cell(x,y,x2,y2,n)
-  if cells[x2][y2] == nil then
-    if n == SPORE then
-      if molds[cells[x][y].mold].e >= ENERGY_MOLD then
-        molds[cells[x][y].mold].e = molds[cells[x][y].mold].e - ENERGY_MOLD
-      else
-        return 0
-      end
-    end
-    
-    molds[cells[x][y].mold].num = molds[cells[x][y].mold].num + 1
-    
-    cells[x2][y2] = {}
-    
-    cells[x2][y2]["dx"] = (x2-x+1)%SIZE_X - 1
-    cells[x2][y2]["dy"] = (y2-y+1)%SIZE_Y - 1
-    
-    cells[x2][y2]["mold"] = cells[x][y].mold
-    cells[x2][y2]["n"] = n
-    
-    cells[x2][y2]["sleep"] = true
-    cells[x2][y2]["time"] = 0
-  end
-end
+// text
+var NormalFont font.Face
+var text_srting = "Press Q/W to increase/decrease the light."
+var text_time = 300
+var starting_text = true
 
+// position molds
+var cells [SIZE_X][SIZE_Y]Cell
+var molds [MAX_MOLD]Mold
 
-function neitherhood(x,y,dx,dy,dir)
-  if ((dx==1 and dir==4) or (dx==-1 and dir==2) or (dy==1 and dir==1) or (dy==-1 and dir==3)) then
-    return ((x-1)%SIZE_X+1), (y%SIZE_Y+1)
-  
-  elseif (dx==1 and dir==1) or (dx==-1 and dir==3) or (dy==1 and dir==2) or (dy==-1 and dir==4) then
-    return ((x)%SIZE_X+1), ((y-1)%SIZE_Y+1)
-    
-  elseif (dx==1 and dir==2) or (dx==-1 and dir==4) or (dy==1 and dir==3) or (dy==-1 and dir==1) then
-    return ((x-1)%SIZE_X+1), ((y-2)%SIZE_Y+1)
-    
-  elseif (dx==1 and dir==3) or (dx==-1 and dir==1) or (dy==1 and dir==4) or (dy==-1 and dir==2) then
-    return ((x-2)%SIZE_X+1), ((y-1)%SIZE_Y+1)
-  end
-end  
+// gen n is in the positions 3n, 3n+1, 3n+2
+// 3n - left growth
+// 3n+1 - top growth
+// 3n+2 - rigrt growth
+// no bottom growth
+var genomes [MAX_GENOME][LEN_GENOME*3 + 4]int
 
-function add_cells(x,y)
-  if cells[x][y].n ~= SPORE then
-    for i=1,4 do
-      if genoms[molds[cells[x][y].mold].gen][cells[x][y].n][i] ~= NONE then
-        x2,y2 = neitherhood(x, y, cells[x][y].dx, cells[x][y].dy, i)
-        if not(BARIER) or (x2 ~= BARIER_X and x2 ~= 1 and y2 ~= BARIER_Y and y2 ~= 1) then
-          add_cell(x,y,x2,y2, genoms[molds[cells[x][y].mold].gen][cells[x][y].n][i])
-        end
-      end
-    end
-  end
-end
+type Cell struct {
+	mold   int
+	n      int
+	dx, dy int
+	time   int
+}
 
-function photosynthesis(x,y)
-  function ph(x2,y2)
-    if cells[x2][y2] == nil then
-      return ENERGY_LIGHT
-    else
-      return 0
-    end
-  end
-  molds[cells[x][y].mold].e = molds[cells[x][y].mold].e + ph(x%SIZE_X+1,y) + ph((x-2)%SIZE_X+1,y) + ph(x,y%SIZE_Y+1) + ph(x,(y-2)%SIZE_X+1)
-end
+type Mold struct {
+	genome int
+	energy int
+	num    int
+	color  int
+}
 
-function delete_cell(x,y)
-  local mold = cells[x][y].mold 
-  if cells[x][y].n == SPORE then
-    new_molds(x,y)
-  else
-    cells[x][y] = nil
-  end
-  molds[mold].num = molds[mold].num - 1
-  if molds[mold].num < 1 then
-    local genom = molds[mold].gen
-    molds[mold] = nil
-    genoms[genom].num = genoms[genom].num - 1
-    if genoms[genom].num < 1 then
-      genoms[genom] = nil
-    end
-  end
-end
+type Game struct {
+	pixels []byte
+}
 
-function information()
-  print("time", TIME)
-  local num_g = 0
-  local num_m = 0
-  for i=1, 1000 do
-    if genoms[i] ~= nil then
-      num_g = num_g + 1
-    end
-  end
-  for i=1, 5000 do
-    if molds[i] ~= nil then
-      num_m = num_m + 1
-    end
-  end
-  print("genomes", num_g, "molds", num_m)
-end
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
-function love.load()
-  cells = {}
-  for i=1, SIZE_X do
-    for j=1, SIZE_Y do
-      cells[i] = {}
-      cells[i][j] = nil    
-    end
-  end
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
-  molds = {}
-  genoms = {}
+// x mod SIZE_X
+func mod_x(x int) int {
+	if x >= SIZE_X {
+		return x - SIZE_X
+	}
+	if x < 0 {
+		return x + SIZE_X
+	}
+	return x
+}
 
-  mouse_genom = {}
-  m_i0 = 0
-  m_j0 = 0
-end
+// y mod SIZE_Y
+func mod_y(y int) int {
+	if y >= SIZE_Y {
+		return y - SIZE_Y
+	}
+	if y < 0 {
+		return y + SIZE_Y
+	}
+	return y
+}
 
-function love.update()  
-  mouse_click()
-  if not PAUSE then
-    TIME = TIME+1
-    
-    for x=1,SIZE_X do
-      for y=1, SIZE_Y do
-        if cells[x][y] then
-          cells[x][y].sleep = false
-          cells[x][y].time = cells[x][y].time + 1
-          molds[cells[x][y].mold].e = molds[cells[x][y].mold].e - ENERGY_DAY * (1 + cells[x][y].time/TIME_CELL)
-          if cells[x][y].n ~= SPORE then
-            photosynthesis(x,y)
-          end
-        end
-      end
-    end
-    
-    for x=1, SIZE_X do
-      for y=1, SIZE_Y do
-        if cells[x][y] then
-          if molds[cells[x][y].mold].e < 0 then
-            delete_cell(x,y)
-          end
-        end
-      end
-    end
+// generate one gen
+func rand_gen() int {
+	return (rand.Intn(LEN_GENOME+2))*rand.Intn(2) - 2
+}
 
-    for x=1,SIZE_X do
-      for y=1, SIZE_Y do
-        if cells[x][y] then
-          if cells[x][y].sleep == false then
-            add_cells(x,y)
-          end
-        end
-      end
-    end
-  end
-end 
+// generate random color for genome
+func rand_color(genome int) {
+	genomes[genome][R] = 10 + rand.Intn(130)
+	genomes[genome][G] = 10 + rand.Intn(130)
+	genomes[genome][B] = 10 + rand.Intn(130)
+}
 
-function love.keypressed(key)
-  if key == 'v' then
-    VISUAL = not(VISUAL)
-  
-  elseif key == 'p' then
-    PAUSE = not(PAUSE)
-  
-  elseif key == "g" then
-    for i=1,300 do
-      generate_mold(math.random(SIZE_X),math.random(SIZE_Y), false)
-    end
-    
-  elseif key == "q" then
-    ENERGY_LIGHT = ENERGY_LIGHT - 0.1
-    print("light", ENERGY_LIGHT)
-  elseif key == "w" then
-    ENERGY_LIGHT = ENERGY_LIGHT + 0.1
-    print("light", ENERGY_LIGHT)
+// found i new genome
+func found_new_genome() int {
+	new_genome := 1
+	for new_genome < MAX_GENOME {
+		if genomes[new_genome][NUM] == 0 {
+			break
+		}
+		new_genome++
+	}
+	// check num genome
+	if new_genome >= MAX_GENOME {
+		text_time = world_time
+		text_srting = "Panic! Too much genome!"
+		//fmt.Println("Panic! Too much genome!")
 
-  elseif key == 'f' then
-    print(love.timer.getFPS())
-  elseif key == "i" then
-    information()
-    
-  elseif key == "escape" then
-      love.window.close()
-      love.event.quit()
-  end
-end
+	}
+	return new_genome
+}
 
-function mouse_click()
-  if love.mouse.isDown(1) then
-    local i0 = math.floor(love.mouse.getX()/ZOOM) + 1
-    local j0 = math.floor(love.mouse.getY()/ZOOM) + 1
-    
-    if i0 ~= m_i0 or j0 ~= m_j0 then
-      m_i0 = i0
-      m_j0 = j0
-      
-      if cells[i0][j0] ~= nil then
-        love.system.setClipboardText(lume.serialize(genoms[molds[cells[i0][j0].mold].gen]))
-        print("genome saved to the clipboard")
-      
-      else
-        local a = love.system.getClipboardText()
-        if string.byte(a, 1) == 123 then
-          mouse_genom = lume.deserialize(a)
-          generate_mold(i0,j0,true)
-        end
-      end
-    end
-  end
-end
+// found i new mold
+func found_new_mold() int {
+	new_mold := 1
+	for new_mold < MAX_MOLD {
+		if molds[new_mold].num == 0 {
+			break
+		}
+		new_mold++
+	}
+	// chech num mold
+	if new_mold >= MAX_MOLD {
+		text_time = world_time
+		text_srting = "Panic! Too much mold!"
+		//fmt.Println("Panic! Too much mold!")
+	}
+	return new_mold
+}
 
-function love.draw()  
-  if VISUAL then
-    for i=1, SIZE_X do
-      for j=1, SIZE_Y do
-        if cells[i][j] ~= nil then
-          if molds[cells[i][j].mold] ~= nil then
-            love.graphics.setColor((molds[cells[i][j].mold].color))
-            love.graphics.rectangle("fill", i*ZOOM-ZOOM, j*ZOOM-ZOOM, ZOOM, ZOOM)
-            if cells[i][j].n == SPORE then
-              love.graphics.setColor(0,0,0)
-              love.graphics.rectangle("fill", i*ZOOM-ZOOM/4*3, j*ZOOM-ZOOM/4*3, ZOOM/2, ZOOM/2)
-            end
-          end
-        end
-      end
-    end
-  end
-end
+func delete_all() {
+	// delete all genomes
+	for i := 0; i < MAX_GENOME; i++ {
+		genomes[i][NUM] = 0
+	}
+	// delete all molds
+	for i := 0; i < MAX_MOLD; i++ {
+		molds[i].num = 0
+	}
+	// delete all cells
+	for i := 0; i < SIZE_X; i++ {
+		for j := 0; j < SIZE_Y; j++ {
+			cells[i][j].mold = 0
+		}
+	}
+}
+
+func generate_new_mold(x, y int) {
+	if cells[x][y].mold == 0 {
+		// found i for new genome and new mold
+		new_genome := found_new_genome()
+		new_mold := found_new_mold()
+
+		if new_genome < MAX_GENOME && new_mold < MAX_MOLD {
+			// generate new genome
+			for i := 0; i < LEN_GENOME*3; i++ {
+				genomes[new_genome][i] = rand_gen()
+			}
+			genomes[new_genome][NUM] = 1
+			rand_color(new_genome)
+
+			// create new mold and cell
+			molds[new_mold] = Mold{new_genome, energy_light * 10, 1, rand.Intn(60)}
+			cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
+		}
+	}
+}
+
+func load_genom(x, y int) {
+	// found i for new genome and new mold
+	new_genome := found_new_genome()
+	new_mold := found_new_mold()
+
+	if new_genome < MAX_GENOME && new_mold < MAX_MOLD {
+		// copy mouse gemone
+		for i := 0; i < LEN_GENOME*3+4; i++ {
+			genomes[new_genome][i] = mouse_gen[i]
+		}
+		genomes[new_genome][NUM] = 1
+
+		// creadte mold and cell
+		molds[new_mold] = Mold{new_genome, energy_light * 10, 1, rand.Intn(60)}
+		cells[x][y] = Cell{new_mold, 0, 0, 1, 0}
+	}
+}
+
+func create_new_mold(x, y int) {
+	// found i last genome and last mold
+	last_mold := cells[x][y].mold
+	last_genome := molds[last_mold].genome
+
+	// found i new genome and new mold
+	new_mold := found_new_mold()
+	new_genome := found_new_genome() // it may not be needed
+
+	if new_genome < MAX_GENOME && new_mold < MAX_MOLD {
+		if rand.Intn(MUTATE) == 0 {
+			// copy genome and mutation
+			for i := 0; i < LEN_GENOME*3; i++ {
+				genomes[new_genome][i] = genomes[last_genome][i]
+			}
+			genomes[new_genome][NUM] = 1
+			rand_color(new_genome)
+
+			// mutate
+			genomes[new_genome][rand.Intn(LEN_GENOME*3)] = rand_gen()
+
+			// create new mold (new genome)
+			molds[new_mold] = Mold{new_genome, cells[x][y].time, 1, rand.Intn(60)}
+		} else {
+			// create new mold (old genome)
+			genomes[last_genome][NUM]++
+			molds[new_mold] = Mold{last_genome, cells[x][y].time, 1, rand.Intn(60)}
+		}
+
+		// creade cell
+		cells[x][y].mold = new_mold
+		cells[x][y].n = 0
+		cells[x][y].time = 0
+	} else {
+		cells[x][y].mold = 0
+	}
+}
+
+func add_cell(x, y, x2, y2, n int) {
+	if cells[x2][y2].mold == 0 {
+		// if it is spore, it takes energy
+		if n != SPORE || molds[cells[x][y].mold].energy > ENERGY_MOLD {
+			// mold use energy
+			if n == SPORE {
+				molds[cells[x][y].mold].energy -= ENERGY_MOLD
+			}
+			// mold add num
+			molds[cells[x][y].mold].num++
+
+			// add cell
+			cells[x2][y2].mold = cells[x][y].mold
+			cells[x2][y2].n = n
+			cells[x2][y2].time = 0
+
+			// direction cell x
+			cells[x2][y2].dx = mod_x(x2-x+1) - 1
+			cells[x2][y2].dy = mod_y(y2-y+1) - 1
+		}
+	}
+}
+
+func neitherhood(x, y, dx, dy, dir int) (int, int) {
+	// top direction
+	if (dx == 1 && dir == 0) || (dx == -1 && dir == 2) || (dy == 1 && dir == 1) {
+		return x, mod_y(y + 1)
+	}
+	// right direction
+	if (dx == 1 && dir == 1) || (dy == 1 && dir == 2) || (dy == -1 && dir == 0) {
+		return mod_x(x + 1), y
+	}
+	// bottom direction
+	if (dx == 1 && dir == 2) || (dx == -1 && dir == 0) || (dy == -1 && dir == 1) {
+		return x, mod_y(y - 1)
+	}
+	// left direction
+	if (dx == -1 && dir == 1) || (dy == 1 && dir == 0) || (dy == -1 && dir == 2) {
+		return mod_x(x - 1), y
+	}
+	// panic!
+	text_time = world_time
+	text_srting = "Panic! I can't find my neighbor!"
+	// fmt.Println("Panic! I can't find my neighbor!")
+	return 0, 0
+}
+
+func growth_cell(x, y int) {
+	if cells[x][y].n != SPORE {
+		// growth cell on four direction
+		for dir := 0; dir < 3; dir++ {
+			// new cell gen in the genome
+			next_n := genomes[molds[cells[x][y].mold].genome][cells[x][y].n*3+dir]
+			if next_n != NONE {
+				x2, y2 := neitherhood(x, y, cells[x][y].dx, cells[x][y].dy, dir)
+				add_cell(x, y, x2, y2, next_n)
+			}
+		}
+	}
+}
+
+func ph(x2, y2 int) (energy int) {
+	// empty cell next to it gives energy
+	if cells[x2][y2].mold == 0 {
+		return energy_light
+	}
+	return 0
+}
+
+func photosynthesis(x, y int) {
+	// neitherhood on four direction
+	molds[cells[x][y].mold].energy += ph(mod_x(x+1), y) + ph(mod_x(x-1), y) + ph(x, mod_y(y+1)) + ph(x, mod_y(y-1))
+}
+
+func delete_cell(x, y int) {
+	delete_mold := cells[x][y].mold
+	delete_genome := molds[delete_mold].genome
+
+	// delete cell
+	if cells[x][y].n == SPORE {
+		create_new_mold(x, y)
+	} else {
+		cells[x][y].mold = 0
+	}
+
+	// delete nil mold and nil genome
+	molds[delete_mold].num--
+	if molds[delete_mold].num <= 0 {
+		genomes[delete_genome][NUM]--
+	}
+}
+
+func update() {
+	if !pause {
+		// photosynthesis, food and aging
+		for x := 0; x < SIZE_X; x++ {
+			for y := 0; y < SIZE_Y; y++ {
+				if cells[x][y].mold != 0 {
+					cells[x][y].time++
+					molds[cells[x][y].mold].energy -= ENERGY_DAY * (1 + int(cells[x][y].time/TIME_CELL))
+					photosynthesis(x, y)
+				}
+			}
+		}
+
+		// growth cells
+		for x := 0; x < SIZE_X; x++ {
+			for y := 0; y < SIZE_Y; y++ {
+				if cells[x][y].mold != 0 {
+					if cells[x][y].time > 0 {
+						growth_cell(x, y)
+					}
+				}
+			}
+		}
+
+		// delete cells
+		for x := 0; x < SIZE_X; x++ {
+			for y := 0; y < SIZE_Y; y++ {
+				if cells[x][y].mold != 0 {
+					if molds[cells[x][y].mold].energy <= 0 {
+						delete_cell(x, y)
+					}
+				}
+			}
+		}
+	}
+}
+
+func key_press() {
+	// gereration new molds
+	if inpututil.IsKeyJustPressed(ebiten.KeyG) {
+		for i := 0; i < 300; i++ {
+			generate_new_mold(rand.Intn(SIZE_X), rand.Intn(SIZE_Y))
+		}
+		starting_text = false
+	}
+
+	// on/off pause
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
+		pause = !pause
+	}
+
+	// energy light
+	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		energy_light--
+		if energy_light < 0 {
+			energy_light = 0
+		}
+		energy_visual_time = world_time
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyW) {
+		energy_light++
+		if energy_light > ENERGY_LIGHT_MAX {
+			energy_light = ENERGY_LIGHT_MAX
+		}
+		energy_visual_time = world_time
+	}
+
+	// print info
+	if inpututil.IsKeyJustPressed(ebiten.KeyI) && DEVELOPER {
+		num_g := 0
+		for i := 0; i < MAX_GENOME; i++ {
+			if genomes[i][NUM] != 0 {
+				num_g++
+			}
+		}
+		num_m := 0
+		for i := 0; i < MAX_MOLD; i++ {
+			if molds[i].num != 0 {
+				num_m++
+			}
+		}
+		fmt.Println("time", world_time, "genome", num_g, "mold", num_m)
+		fmt.Println(ebiten.CurrentFPS())
+	}
+
+	// delete all
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		delete_all()
+		text_time = world_time
+		text_srting = "Delete all molds."
+	}
+
+	// toggle fullscreen
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+		ebiten.SetFullscreen(!ebiten.IsFullscreen())
+	}
+
+	// toggle fullscreen
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		ebiten.SetFullscreen(false)
+	}
+}
+
+func mouse_click() {
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		// cursor position
+		x, y := ebiten.CursorPosition()
+		if 0 <= x && x < WIN_X && 0 <= y && y < WIN_Y {
+			x = mod_x(zoom_x + int(x/zoom))
+			y = mod_y(zoom_y + int(y/zoom))
+			fmt.Println(x, y)
+			// copy genom or add new mold next cursor
+			if cells[x][y].mold != 0 {
+				save, _ := json.Marshal(genomes[molds[cells[x][y].mold].genome])
+				clipboard.WriteAll(string(save)) //  text genome save in clipboard
+				//fmt.Println("Genome saved in clipboard.")
+				text_time = world_time
+				text_srting = "Genome saved in clipboard."
+				if DEVELOPER {
+					fmt.Println("x", x, "y", y, "gen", cells[x][y].n, "age", cells[x][y].time, "energy", molds[cells[x][y].mold].energy, "mold", cells[x][y].mold)
+				}
+			} else {
+				save, _ := clipboard.ReadAll()
+				err := json.Unmarshal([]byte(save), &mouse_gen) // text genome load in mouse_gen
+				if err != nil {
+					// no panic
+					//fmt.Println("Can't load: no genome on the clipboard")
+					text_time = world_time
+					text_srting = "Can't load: no genome on the clipboard."
+				} else {
+					load_genom(x, y)
+					//fmt.Println("Genome loaded from clipboard.")
+					text_time = world_time
+					text_srting = "Genome loaded from clipboard."
+					starting_text = false
+				}
+			}
+		} else {
+			//fmt.Println("Click out of the world.")
+			text_time = world_time
+			text_srting = "Click out of the world."
+		}
+	}
+
+	// change zoom
+	if !camera_flag {
+		_, z := ebiten.Wheel()
+		x, y := ebiten.CursorPosition()
+		zoom_x = mod_x(zoom_x + int(x/zoom))
+		zoom_y = mod_y(zoom_y + int(y/zoom))
+
+		zoom += int(z)
+		zoom = max(zoom, ZOOM_MIM)
+		zoom = min(zoom, ZOOM_MAX)
+
+		zoom_x = mod_x(zoom_x - int(x/zoom))
+		zoom_y = mod_y(zoom_y - int(y/zoom))
+	}
+
+	// change cameta posion
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+		camera_flag = true
+		x, y := ebiten.CursorPosition()
+		camera_x = mod_x(zoom_x + int(x/zoom))
+		camera_y = mod_y(zoom_y + int(y/zoom))
+	}
+
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+		x, y := ebiten.CursorPosition()
+		zoom_x = mod_x(camera_x - int(x/zoom))
+		zoom_y = mod_y(camera_y - int(y/zoom))
+	} else {
+		camera_flag = false
+	}
+
+}
+
+func (g *Game) Update() error {
+	world_time++
+	mouse_click()
+	key_press()
+	update()
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	// create pixels
+	if g.pixels == nil {
+		g.pixels = make([]byte, WIN_X*WIN_Y*4)
+	}
+
+	// draw cells
+	for x := 0; x < int(WIN_X/zoom); x++ {
+		for y := 0; y < int(WIN_Y/zoom); y++ {
+			x0 := mod_x(x + zoom_x)
+			y0 := mod_y(y + zoom_y)
+
+			if cells[x0][y0].mold != 0 {
+				// draw cell
+				color_r := byte(genomes[molds[cells[x0][y0].mold].genome][R] + molds[cells[x0][y0].mold].color)
+				color_g := byte(genomes[molds[cells[x0][y0].mold].genome][G] + molds[cells[x0][y0].mold].color)
+				color_b := byte(genomes[molds[cells[x0][y0].mold].genome][B] + molds[cells[x0][y0].mold].color)
+				for i := 0; i < zoom; i++ {
+					for j := 0; j < zoom; j++ {
+						pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
+						g.pixels[pic] = color_r
+						g.pixels[pic+1] = color_g
+						g.pixels[pic+2] = color_b
+						g.pixels[pic+3] = 0xff
+					}
+				}
+				// draw spore
+				if cells[x0][y0].n == SPORE {
+					for i := 1; i < zoom-1; i++ {
+						for j := 1; j < zoom-1; j++ {
+							pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
+							g.pixels[pic] = 0
+							g.pixels[pic+1] = 0
+							g.pixels[pic+2] = 0
+							g.pixels[pic+3] = 0xff
+						}
+					}
+				}
+
+			} else {
+				// draw nil cell
+				for i := 0; i < zoom; i++ {
+					for j := 0; j < zoom; j++ {
+						pic := ((y*zoom+j)*WIN_X + x*zoom + i) * 4
+						g.pixels[pic] = 0
+						g.pixels[pic+1] = 0
+						g.pixels[pic+2] = 0
+						g.pixels[pic+3] = 0
+					}
+				}
+			}
+		}
+	}
+
+	// graw light
+	if world_time-energy_visual_time < 120 {
+		for x := 20; x < 20+energy_light*16; x++ {
+			for y := 20; y < 40; y++ {
+				pic := (y*WIN_X + x) * 4
+				g.pixels[pic] = 0xc0
+				g.pixels[pic+1] = 0xc3
+				g.pixels[pic+2] = 0x50
+				g.pixels[pic+3] = 0xff
+			}
+		}
+		for x := 20 + energy_light*16; x < 20+ENERGY_LIGHT_MAX*16; x++ {
+			for y := 20; y < 40; y++ {
+				pic := (y*WIN_X + x) * 4
+				g.pixels[pic] = 0x60
+				g.pixels[pic+1] = 0x60
+				g.pixels[pic+2] = 0x60
+				g.pixels[pic+3] = 0xff
+			}
+		}
+	}
+
+	// screen output
+	screen.ReplacePixels(g.pixels)
+
+	// graw start hello
+	if starting_text {
+		text.Draw(screen, "Press G to generate new molds", NormalFont, int(WIN_X/2)-150, int(WIN_Y/2), color.White)
+	}
+
+	// graw text light
+	if world_time-energy_visual_time < 120 {
+		text.Draw(screen, fmt.Sprint(energy_light), NormalFont, 20+ENERGY_LIGHT_MAX*8, 37, color.Black)
+	}
+
+	// graw copy/load
+	if world_time-text_time < 120 {
+		text.Draw(screen, text_srting, NormalFont, 20, 60, color.White)
+	}
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	// size window
+	return WIN_X, WIN_Y
+}
+
+func main() {
+	// seed for random
+	rand.Seed(time.Now().UnixNano())
+
+	// create window
+	ebiten.SetWindowSize(WIN_X, WIN_Y)
+	ebiten.SetWindowTitle("Cute mold")
+	//ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
+
+	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(logoData))
+	logoImage, _, err := image.Decode(reader)
+	if err != nil {
+		panic(err)
+	}
+	ebiten.SetWindowIcon([]image.Image{logoImage})
+
+	// font for text on the screen
+	tt, _ := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	NormalFont, _ = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    20,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+
+	// game run
+	game := &Game{}
+	if err := ebiten.RunGame(game); err != nil {
+		panic(err)
+	}
+}
+
+const logoData = `
+iVBORw0KGgoAAAANSUhEUgAAAUAAAAFACAYAAADNkKWqAAABN2lDQ1BBZG9iZSBSR0IgKDE5OTgp
+AAAokZWPv0rDUBSHvxtFxaFWCOLgcCdRUGzVwYxJW4ogWKtDkq1JQ5ViEm6uf/oQjm4dXNx9AidH
+wUHxCXwDxamDQ4QMBYvf9J3fORzOAaNi152GUYbzWKt205Gu58vZF2aYAoBOmKV2q3UAECdxxBjf
+7wiA10277jTG+38yH6ZKAyNguxtlIYgK0L/SqQYxBMygn2oQD4CpTto1EE9AqZf7G1AKcv8ASsr1
+fBBfgNlzPR+MOcAMcl8BTB1da4Bakg7UWe9Uy6plWdLuJkEkjweZjs4zuR+HiUoT1dFRF8jvA2Ax
+H2w3HblWtay99X/+PRHX82Vun0cIQCw9F1lBeKEuf1UYO5PrYsdwGQ7vYXpUZLs3cLcBC7dFtlqF
+8hY8Dn8AwMZP/fNTP8gAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAezaVRYdFhNTDpjb20uYWRvYmUu
+eG1wAAAAAAA8P3hwYWNrZXQgYmVnaW49Iu+7vyIgaWQ9Ilc1TTBNcENlaGlIenJlU3pOVGN6a2M5
+ZCI/PiA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJBZG9iZSBY
+TVAgQ29yZSA1LjYtYzE0NSA3OS4xNjM0OTksIDIwMTgvMDgvMTMtMTY6NDA6MjIgICAgICAgICI+
+IDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3lu
+dGF4LW5zIyI+IDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiIHhtbG5zOnhtcD0iaHR0cDov
+L25zLmFkb2JlLmNvbS94YXAvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20v
+eGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5
+cGUvUmVzb3VyY2VFdmVudCMiIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMv
+MS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAv
+IiB4bXA6Q3JlYXRvclRvb2w9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIgeG1w
+OkNyZWF0ZURhdGU9IjIwMjItMDctMDZUMTI6MTE6MTUrMDM6MDAiIHhtcDpNZXRhZGF0YURhdGU9
+IjIwMjItMDctMDdUMTQ6MDQ6MDcrMDM6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTA3LTA3VDE0
+OjA0OjA3KzAzOjAwIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOmFkYjY0Nzg4LThmYzYtNTA0
+My1iYjM0LWZmMGE3MWM0NmFlZCIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9z
+aG9wOjZkZDRjMjY4LTdmZWUtYmI0Yi04YjliLTczODk0ZWI5OTc0ZSIgeG1wTU06T3JpZ2luYWxE
+b2N1bWVudElEPSJ4bXAuZGlkOjEyZGM1ZmNhLWMwMDgtMjM0Ni05ZTAxLThjMmYzNTEwYmY0YSIg
+ZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiIHBob3Rvc2hvcDpJ
+Q0NQcm9maWxlPSJBZG9iZSBSR0IgKDE5OTgpIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8
+cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDox
+MmRjNWZjYS1jMDA4LTIzNDYtOWUwMS04YzJmMzUxMGJmNGEiIHN0RXZ0OndoZW49IjIwMjItMDct
+MDZUMTI6MTE6MTUrMDM6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBD
+QyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omlu
+c3RhbmNlSUQ9InhtcC5paWQ6OGY4MWJhNzUtYjA4MS1lZDQ2LTg1NmEtMjIzNWRlN2RmOTdlIiBz
+dEV2dDp3aGVuPSIyMDIyLTA3LTA2VDEyOjExOjE1KzAzOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50
+PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4g
+PHJkZjpsaSBzdEV2dDphY3Rpb249InNhdmVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOmFk
+YjY0Nzg4LThmYzYtNTA0My1iYjM0LWZmMGE3MWM0NmFlZCIgc3RFdnQ6d2hlbj0iMjAyMi0wNy0w
+N1QxNDowNDowNyswMzowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIEND
+IDIwMTkgKFdpbmRvd3MpIiBzdEV2dDpjaGFuZ2VkPSIvIi8+IDwvcmRmOlNlcT4gPC94bXBNTTpI
+aXN0b3J5PiA8cGhvdG9zaG9wOkRvY3VtZW50QW5jZXN0b3JzPiA8cmRmOkJhZz4gPHJkZjpsaT5h
+ZG9iZTpkb2NpZDpwaG90b3Nob3A6OGRiMmM0OTUtMzc1Mi1iNTQ0LWI2YjEtNTQ1MmM3ZjkzMDVh
+PC9yZGY6bGk+IDxyZGY6bGk+YWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOmYwNGEwN2E3LWU0YWEtZDI0
+NS05ZjExLWRiZjY3YzhiYWIyOTwvcmRmOmxpPiA8L3JkZjpCYWc+IDwvcGhvdG9zaG9wOkRvY3Vt
+ZW50QW5jZXN0b3JzPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4g
+PD94cGFja2V0IGVuZD0iciI/PmcsnWMAAAVSSURBVHic7d3BbdRQGEZRD3JliVIIiLKiZIFYpBMW
+SLCjnNABJPIb/A/3nAIsx2NfvVW+y/3D3es22+XsGyBt+vexWup7+3D2DQCcRQCBLAEEsgQQyBJA
+IEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIuX1++LN08eHp8
+Xnm5bVu/UWDjgfdY+r58+vxx5eVu4XsbzQkQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAg
+SwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIGs/ewbeIPRGx43sPEw+vldQWrT4gqmvy9Lf18n
+QCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCB
+LAEEspZvgqzeyGCWG9hASZn+vU3/fZ0AgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQ
+yBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDI2qf/z/7ppm8y8H/z/R7jBAhkCSCQJYBAlgACWQII
+ZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQNa+bdvl7Jv4x17P
+voE/sTFy2Ojfl1mcAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSy
+BBDIEkAgSwCBLAEEsgQQyNo3GwqjPD0+n30LN622qTL9773C+7y0V06AQJYAAlkCCGQJIJAlgECW
+AAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghk7cFNAXiz2vu3ugfT
+++IECGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghk
+CSCQJYBA1r5682D6BsB0q59fbdOCY2rvixMgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBA
+lgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZ+9k3cOtsqhwz/e+dfn+1DY/VnACBLAEEsgQQ
+yBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMi63D/c
+va684PQNBTjT9A2P2vfrBAhkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghk
+CSCQJYBAlgACWQIIZAkgkCWAQNbyTZCa2oYCvMfqDZTV35sTIJAlgECWAAJZAghkCSCQJYBAlgAC
+WQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWcs3QWxkwO1aveExnRMgkCWA
+QJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZ
++9k38DerNwqmb5b8+P5t7fV+/lp6Pc/vmOnPb/r9re6BEyCQJYBAlgACWQIIZAkgkCWAQJYAAlkC
+CGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAln79A2AmtUbFDWe3zG1DR4nQCBL
+AIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEE
+svbVGwAcM31DYTrPj/dwAgSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSy
+BBDIEkAgSwCBLAEEsgQQyBJAIOs3EnlyUx/dweQAAAAASUVORK5CYII=
+`
