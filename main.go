@@ -294,8 +294,6 @@ func create_new_mold(x, y int) {
 		cells[x][y].mold = new_mold
 		cells[x][y].n = 0
 		cells[x][y].time = 0
-	} else {
-		cells[x][y].mold = 0
 	}
 }
 
