@@ -281,6 +281,8 @@ func create_new_mold(x, y int) {
 			rand_color(new_genome)
 			// mutate
 			genomes[new_genome][rand.Intn(LEN_GENOME*3)] = rand_gen()
+			genomes[new_genome][rand.Intn(LEN_GENOME*3)] = rand_gen()
+			genomes[new_genome][rand.Intn(LEN_GENOME*3)] = rand_gen()
 
 			// create new mold (new genome)
 			molds[new_mold] = Mold{new_genome, cells[x][y].time, 1, rand.Intn(60)}
