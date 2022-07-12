@@ -277,8 +277,8 @@ func create_new_mold(x, y int) {
 				genomes[new_genome][i] = genomes[last_genome][i]
 			}
 			genomes[new_genome][NUM] = 1
+			// new color for genome
 			rand_color(new_genome)
-
 			// mutate
 			genomes[new_genome][rand.Intn(LEN_GENOME*3)] = rand_gen()
 
