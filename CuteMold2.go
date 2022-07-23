@@ -517,7 +517,7 @@ func mouse_click() {
 				// text genome load in mouse_gen
 				save, _ := clipboard.ReadAll()
 				if len(save) < 500 {
-					// сonversion of the old version genome (50 genes) into the new version genome (500 genes)
+					// сonversion of the old version genome (50 genes) into the new version genome (300 genes)
 					var last_mouse_gen [154]int
 					err := json.Unmarshal([]byte(save), &last_mouse_gen)
 					if err == nil {
