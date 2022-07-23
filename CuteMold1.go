@@ -1,3 +1,4 @@
+// version 1
 package main
 
 import (
@@ -682,7 +683,7 @@ func main() {
 
 	// create window
 	ebiten.SetWindowSize(WIN_X, WIN_Y)
-	ebiten.SetWindowTitle("Cute mold")
+	ebiten.SetWindowTitle("Cute mold v1")
 	//ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
 
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(logoData))
