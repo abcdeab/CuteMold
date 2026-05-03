@@ -1,4 +1,4 @@
-// version 6
+// version 3
 package main
 
 import (
