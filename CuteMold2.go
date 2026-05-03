@@ -1,4 +1,4 @@
-// version 3
+// version 2
 package main
 
 import (
@@ -47,22 +47,21 @@ const (
 
 	LEN_GENOME = 512
 	LEN_GROWTH = 128
-	RIGHT = 0
-	TOP   = 1
-	LEFT  = 2
-	TYPE  = 3
+	RIGHT      = 0
+	TOP        = 1
+	LEFT       = 2
+	TYPE       = 3
+	SPORE_N    = 0
+	SPORE_K    = 30
 
-	SPORE_N = 0
-	SPORE_K = 30
+	MAX_MOLD = 500000
 
-	MAX_MOLD   = 500000
-
-	ENERGY_DAY       =  6
+	ENERGY_DAY       = 6
 	ENERGY_SPORE     = 40
 	ENERGY_LIGHT_MAX = 16
 
-	TIME_CELL  =   20
-	TIME_SPORE =   60
+	TIME_CELL  = 20
+	TIME_SPORE = 60
 
 	TIME_SHOW_NOTICE = 120
 
@@ -75,12 +74,12 @@ var isUpdating int32
 var spawnMu sync.Mutex
 
 type Game struct {
-	pixels []byte
+	pixels      []byte
 	moldsScreen *ebiten.Image
 }
 
-var WIN_X  = 1800
-var WIN_Y  = 900
+var WIN_X = 1800
+var WIN_Y = 900
 
 var camera_flag = false
 var camera_x, camera_y int
@@ -169,15 +168,15 @@ func create_control_menu_image() {
 }
 
 var energy_light = 16
-
 var lightMapImage *ebiten.Image
 
 type LightNode struct {
-	Name  string
-	X, Y  int
-	Power int
+	Name      string
+	X, Y      int
+	Power     int
 	TextWidth int
 }
+
 var nodes []LightNode
 
 func update_lightmap_image() {
@@ -193,11 +192,13 @@ func update_lightmap_image() {
 
 			local_light := min(int(energy_light), int(light_map[idx]))
 			color_val := local_light * 8
-			if color_val > 255 { color_val = 255 }
+			if color_val > 255 {
+				color_val = 255
+			}
 			bg_c := byte(color_val)
 
 			pIdx := (y*SIZE_X + x) * 4
-			pixels[pIdx]   = bg_c
+			pixels[pIdx] = bg_c
 			pixels[pIdx+1] = bg_c
 			pixels[pIdx+2] = bg_c
 			pixels[pIdx+3] = 0xff
@@ -286,16 +287,15 @@ func decompress_genome(data string, gen *Bitset) error {
 }
 
 type Cell struct {
-	mold uint32
-	time uint16
-	n    int16
-	dx   int8
-	dy   int8
+	mold  uint32
+	time  uint16
+	n     int16
+	dx    int8
+	dy    int8
 	spore bool
 }
 
 var cells []Cell
-
 var light_map []int8
 
 func getCellIdx(x, y int) int {
@@ -305,19 +305,21 @@ func getCellIdx(x, y int) int {
 func mod_x(x int) int {
 	return x & MASK_X
 }
+
 func mod_y(y int) int {
 	return y & MASK_Y
 }
 
 type Mold struct {
-	name [6]byte
-	genome Bitset
-	energy int64
-	leave bool
-	free bool
-	r, g, b byte
+	name       [6]byte
+	genome     Bitset
+	energy     int64
+	leave      bool
+	free       bool
+	r, g, b    byte
 	rc, gc, bc byte
 }
+
 var molds [MAX_MOLD]Mold
 
 func init() {
@@ -412,7 +414,7 @@ func generate_light_map() {
 	light_map = make([]int8, SIZE_X*SIZE_Y)
 
 	type FastNode struct {
-		X, Y int
+		X, Y       int
 		MaxDistSq  float64
 		CoreDistSq float64
 		LogMax     float64
@@ -426,11 +428,11 @@ func generate_light_map() {
 		coreDistSq := coreDist * coreDist
 
 		fastNodes[i] = FastNode{
-			X: n.X,
-			Y: n.Y,
-			MaxDistSq: maxDistSq,
+			X:          n.X,
+			Y:          n.Y,
+			MaxDistSq:  maxDistSq,
 			CoreDistSq: coreDistSq,
-			LogMax: math.Log((maxDistSq - coreDistSq) + 1.0),
+			LogMax:     math.Log((maxDistSq - coreDistSq) + 1.0),
 		}
 	}
 
@@ -440,16 +442,20 @@ func generate_light_map() {
 
 			for _, node := range fastNodes {
 				dx := abs(x - node.X)
-				if dx > SIZE_X/2 { dx = SIZE_X - dx }
+				if dx > SIZE_X/2 {
+					dx = SIZE_X - dx
+				}
 
 				dy := abs(y - node.Y)
-				if dy > SIZE_Y/2 { dy = SIZE_Y - dy }
+				if dy > SIZE_Y/2 {
+					dy = SIZE_Y - dy
+				}
 
 				distSq := float64(dx*dx + dy*dy)
 
 				if distSq < node.MaxDistSq {
-					decay := math.Log(distSq + 1.0) / node.LogMax
-					nodeLight := 20 - int(20.0 * decay)
+					decay := math.Log(distSq+1.0) / node.LogMax
+					nodeLight := 20 - int(20.0*decay)
 
 					if nodeLight > maxLight {
 						maxLight = nodeLight
@@ -616,7 +622,9 @@ func load_world() {
 }
 
 func export_map_to_png() {
-	if is_saving { return }
+	if is_saving {
+		return
+	}
 	is_saving = true
 
 	if TRANSLATE {
@@ -641,21 +649,23 @@ func export_map_to_png() {
 					moldID := cells[idx].mold
 
 					if cells[idx].spore && cells[idx].time > TIME_SPORE {
-						img.Pix[pixIdx]   = 255
+						img.Pix[pixIdx] = 255
 						img.Pix[pixIdx+1] = 255
 						img.Pix[pixIdx+2] = 255
 					} else {
-						img.Pix[pixIdx]   = molds[moldID].rc
+						img.Pix[pixIdx] = molds[moldID].rc
 						img.Pix[pixIdx+1] = molds[moldID].gc
 						img.Pix[pixIdx+2] = molds[moldID].bc
 					}
 				} else {
 					local_light := min(int(energy_light), int(light_map[idx]))
 					color_val := local_light * 8
-					if color_val > 255 { color_val = 255 }
+					if color_val > 255 {
+						color_val = 255
+					}
 					bg_c := byte(color_val)
 
-					img.Pix[pixIdx]   = bg_c
+					img.Pix[pixIdx] = bg_c
 					img.Pix[pixIdx+1] = bg_c
 					img.Pix[pixIdx+2] = bg_c
 				}
@@ -685,7 +695,7 @@ func export_map_to_png() {
 
 func found_new_mold(x int) int {
 	if x == -1 {
-		new_mold := MAX_MOLD-1
+		new_mold := MAX_MOLD - 1
 		for new_mold > 1 {
 			if molds[new_mold].free == true {
 				molds[new_mold].free = false
@@ -701,7 +711,7 @@ func found_new_mold(x int) int {
 		}
 
 		new_mold := chunkX
-		if new_mold == 0{
+		if new_mold == 0 {
 			new_mold = NUM_WORKERS
 		}
 
@@ -752,7 +762,7 @@ func generate_new_mold(x, y int) {
 	cells[idx].n = 0
 	cells[idx].dx = 1
 	cells[idx].dy = 0
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
@@ -780,7 +790,7 @@ func load_genom(x, y int) {
 	cells[idx].n = 0
 	cells[idx].dx = 1
 	cells[idx].dy = 0
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
@@ -818,20 +828,20 @@ func create_new_mold(x, y int) {
 	cells[idx].mold = uint32(new_mold)
 	cells[idx].time = 0
 	cells[idx].n = 0
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
 func add_cell(x, y, x2, y2, n int) {
-	idx := getCellIdx(x2,y2)
+	idx := getCellIdx(x2, y2)
 
 	if cells[idx].mold == 0 {
-		cells[idx].mold = cells[getCellIdx(x,y)].mold
+		cells[idx].mold = cells[getCellIdx(x, y)].mold
 		cells[idx].n = int16(n)
 		cells[idx].time = 0
 		cells[idx].dx = int8(mod_x(x2-x+1) - 1)
 		cells[idx].dy = int8(mod_y(y2-y+1) - 1)
-		t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+		t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 		cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 	}
 }
@@ -866,7 +876,8 @@ func growth_cell(x, y int) {
 		val := molds[int(cells[idx].mold)].genome.Get(int(n)*4 + dir)
 
 		if val <= LEN_GROWTH {
-			next_n := (int(n) + int(val) - 27  + LEN_GENOME) % LEN_GENOME
+			next_n := (int(n) + int(val) - 27 + LEN_GENOME) % LEN_GENOME
+
 			x2, y2 := neighbor(x, y, int(cells[idx].dx), int(cells[idx].dy), dir)
 			add_cell(x, y, x2, y2, int(next_n))
 		}
@@ -924,10 +935,14 @@ func update() {
 					idx := x * SIZE_Y
 
 					leftBase := idx - SIZE_Y
-					if x == 0 { leftBase = (SIZE_X - 1) * SIZE_Y }
+					if x == 0 {
+						leftBase = (SIZE_X - 1) * SIZE_Y
+					}
 
 					rightBase := idx + SIZE_Y
-					if x == SIZE_X - 1 { rightBase = 0 }
+					if x == SIZE_X-1 {
+						rightBase = 0
+					}
 
 					for y := 0; y < SIZE_Y; y++ {
 						if cells[idx].mold != 0 {
@@ -943,20 +958,32 @@ func update() {
 
 							if local_light > 0 {
 								up := idx + 1
-								if y == SIZE_Y - 1 { up = idx - y }
+								if y == SIZE_Y-1 {
+									up = idx - y
+								}
 
 								down := idx - 1
-								if y == 0 { down = idx + SIZE_Y - 1 }
+								if y == 0 {
+									down = idx + SIZE_Y - 1
+								}
 
-								m1 := int(cells[rightBase + y].mold)
+								m1 := int(cells[rightBase+y].mold)
 								m2 := int(cells[up].mold)
-								m3 := int(cells[leftBase + y].mold)
+								m3 := int(cells[leftBase+y].mold)
 								m4 := int(cells[down].mold)
 
-								if m1 != 0 { atomic.AddInt64(&molds[m1].energy, int64(local_light)) }
-								if m2 != 0 { atomic.AddInt64(&molds[m2].energy, int64(local_light)) }
-								if m3 != 0 { atomic.AddInt64(&molds[m3].energy, int64(local_light)) }
-								if m4 != 0 { atomic.AddInt64(&molds[m4].energy, int64(local_light)) }
+								if m1 != 0 {
+									atomic.AddInt64(&molds[m1].energy, int64(local_light))
+								}
+								if m2 != 0 {
+									atomic.AddInt64(&molds[m2].energy, int64(local_light))
+								}
+								if m3 != 0 {
+									atomic.AddInt64(&molds[m3].energy, int64(local_light))
+								}
+								if m4 != 0 {
+									atomic.AddInt64(&molds[m4].energy, int64(local_light))
+								}
 
 							}
 						}
@@ -996,7 +1023,7 @@ func update() {
 									growth_cell(x, y)
 								}
 							} else {
-								if cells[idx].spore && cells[idx].time >= TIME_SPORE{
+								if cells[idx].spore && cells[idx].time >= TIME_SPORE {
 									create_new_mold(x, y)
 								} else {
 									cells[idx].mold = 0
@@ -1029,7 +1056,7 @@ func key_press() {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-	 	load_world()
+		load_world()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
@@ -1040,7 +1067,7 @@ func key_press() {
 		show_inform_control = !show_inform_control
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyJ) && DEVELOPER{
+	if inpututil.IsKeyJustPressed(ebiten.KeyJ) && DEVELOPER {
 		show_inform_world = !show_inform_world
 	}
 
@@ -1069,14 +1096,14 @@ func mouse_click() {
 			x = mod_x(zoom_x + int(x/zoom))
 			y = mod_y(zoom_y + int(y/zoom))
 
-			if cells[getCellIdx(x,y)].mold != 0 {
-				compressed := compress_genome(&molds[int(cells[getCellIdx(x,y)].mold)].genome)
+			if cells[getCellIdx(x, y)].mold != 0 {
+				compressed := compress_genome(&molds[int(cells[getCellIdx(x, y)].mold)].genome)
 				clipboard.WriteAll(compressed)
 
 				if TRANSLATE {
-					text_string = "Геном '" + string(molds[int(cells[getCellIdx(x,y)].mold)].name[:]) + "' скопирован."
+					text_string = "Геном '" + string(molds[int(cells[getCellIdx(x, y)].mold)].name[:]) + "' скопирован."
 				} else {
-					text_string = "Genome '" + string(molds[int(cells[getCellIdx(x,y)].mold)].name[:]) + "' copied."
+					text_string = "Genome '" + string(molds[int(cells[getCellIdx(x, y)].mold)].name[:]) + "' copied."
 				}
 				text_time = world_time
 			} else {
@@ -1143,6 +1170,10 @@ func mouse_click() {
 }
 
 func (g *Game) Update() error {
+	if ebiten.IsWindowMinimized() {
+		return nil
+	}
+
 	mouse_click()
 	key_press()
 
@@ -1174,6 +1205,10 @@ func (g *Game) getLightAtMouse() int {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if ebiten.IsWindowMinimized() {
+		return
+	}
+
 	if show_world {
 		if g.pixels == nil {
 			g.pixels = make([]byte, WIN_X*WIN_Y*4)
@@ -1238,11 +1273,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 									_ = g.pixels[pic+3]
 
 									if isSpore && j >= 2 && j < zoom-1 && i >= 2 && i < zoom-1 {
-										g.pixels[pic]   = spore_color
+										g.pixels[pic] = spore_color
 										g.pixels[pic+1] = spore_color
 										g.pixels[pic+2] = spore_color
 									} else {
-										g.pixels[pic]   = color_r
+										g.pixels[pic] = color_r
 										g.pixels[pic+1] = color_g
 										g.pixels[pic+2] = color_b
 									}
@@ -1269,7 +1304,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			for i := 0; i < 2; i++ {
 				for j := 0; j < 2; j++ {
 					op := &ebiten.DrawImageOptions{}
-					op.GeoM.Translate(float64(-zoom_x + i*SIZE_X), float64(-zoom_y + j*SIZE_Y))
+					op.GeoM.Translate(float64(-zoom_x+i*SIZE_X), float64(-zoom_y+j*SIZE_Y))
 					op.GeoM.Scale(float64(zoom), float64(zoom))
 					screen.DrawImage(lightMapImage, op)
 				}
@@ -1308,23 +1343,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			var infoText []string
 			if !TRANSLATE {
 				infoText = []string{
-				"The mold receives energy from empty cells that touch it.",
-				"The longer the mold lives, the more energy it consumes.",
-				"When its energy runs out, the mold dies.",
-				"New molds emerge from its spores with the same genome and a possible point mutation.",
-				"Spores require time to mature: mature spores are white, while immature ones are black.",
-				" ",
-				"Press G to generate new molds.",
+					"The mold receives energy from empty cells that touch it.",
+					"The longer the mold lives, the more energy it consumes.",
+					"When its energy runs out, the mold dies.",
+					"New molds emerge from its spores with the same genome and a possible point mutation.",
+					"Spores require time to mature: mature spores are white, while immature ones are black.",
+					" ",
+					"Press G to generate new molds.",
 				}
 			} else {
 				infoText = []string{
-				"Плесень получает энергию от пустых клеток, которые касаются её.",
-				"Чем дольше живёт плесень, тем больше энергии она потребляет.",
-				"Когда энергия заканчивается, плесень умирает.",
-				"Из её спор появляются новые плесени с таким же геномом и возможной точечной мутацией.",
-				"Споры требуют время на созревание: созервшие споры белые, несозревшие - черные.",
-				" ",
-				"Нажми G чтобы сгенерировать новые плесени.",
+					"Плесень получает энергию от пустых клеток, которые касаются её.",
+					"Чем дольше живёт плесень, тем больше энергии она ПРетребляет.",
+					"Когда энергия заканчивается, плесень умирает.",
+					"Из её спор появляются новые плесени с таким же геномом и возможной точечной мутацией.",
+					"Споры требуют время на созревание: созервшие споры белые, несозревшие - черные.",
+					" ",
+					"Нажми G чтобы сгенерировать новые плесени.",
 				}
 			}
 
@@ -1359,7 +1394,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		if show_inform_world && DEVELOPER {
 			mx, my := ebiten.CursorPosition()
-			currentLight := max(g.getLightAtMouse(),0)
+			currentLight := max(g.getLightAtMouse(), 0)
 			text.Draw(screen, fmt.Sprint(currentLight), NormalFont, mx+15, my+15, color.White)
 		}
 	} else {
@@ -1372,6 +1407,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if outsideWidth <= 0 || outsideHeight <= 0 {
+		return 1, 1
+	}
 	return WIN_X, WIN_Y
 }
 
