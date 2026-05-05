@@ -1,4 +1,3 @@
-// version 2
 package main
 
 import (
@@ -32,44 +31,43 @@ import (
 )
 
 const (
-	DEVELOPER = false
-	TRANSLATE = false
-	
-	SIZE_X = 4096 
-	SIZE_Y = 4096
-	MASK_X = SIZE_X - 1
-	MASK_Y = SIZE_Y - 1
+	DEVELOPER	= false
+	TRANSLATE	= false
 
-	ZOOM_MIM = 1
-	ZOOM_MAX = 20
+	SIZE_X	= 4096
+	SIZE_Y	= 4096
+	MASK_X	= SIZE_X - 1
+	MASK_Y	= SIZE_Y - 1
 
-	MUTATE = 100
-	
-	LEN_GENOME = 512
-	LEN_GROWTH = 128
-	
-	RIGHT = 0
-	TOP   = 1
-	LEFT  = 2
-	
-	TYPE  = 3
-	
-	SPORE_N = 0
-	SPORE_K = 30
+	ZOOM_MIM	= 1
+	ZOOM_MAX	= 20
 
-	MAX_MOLD   = 500000
+	MUTATE	= 50
 
-	ENERGY_DAY       =  1
-	ENERGY_SPORE     =  8
-	ENERGY_LIGHT_MAX = 16
-	
-	TIME_CELL  =   20
-	TIME_SPORE =   60
-	
-	TIME_SHOW_NOTICE = 120
-	
-	vowels     = "aeiouy"
-	consonants = "bcdfghjklmnprstvwxz"
+	LEN_GENOME	= 512
+	LEN_GROWTH	= 128
+
+	RIGHT	= 0
+	TOP	= 1
+	LEFT	= 2
+
+	TYPE	= 3
+
+	SPORE_N	= 0
+	SPORE_K	= 30
+
+	MAX_MOLD	= 500000
+
+	ENERGY_DAY	= 4
+	ENERGY_SPORE	= ENERGY_DAY * 4
+
+	TIME_CELL	= 20
+	TIME_SPORE	= 60
+
+	TIME_SHOW_NOTICE	= 120
+
+	vowels		= "aeiouy"
+	consonants	= "bcdfghjklmnprstvwxz"
 )
 
 var NUM_WORKERS int
@@ -78,12 +76,12 @@ var isSweeping int32
 var spawnMu sync.Mutex
 
 type Game struct {
-	pixels []byte
-	moldsScreen *ebiten.Image
+	pixels		[]byte
+	moldsScreen	*ebiten.Image
 }
 
-var WIN_X  = 1800
-var WIN_Y  = 900
+var WIN_X = 1800
+var WIN_Y = 900
 
 var camera_flag = false
 var camera_x, camera_y int
@@ -108,11 +106,12 @@ var text_time int
 var controlMenuImage *ebiten.Image
 
 func drawTextWithOutline(screen *ebiten.Image, msg string, f font.Face, x, y int, c color.Color) {
+
 	text.Draw(screen, msg, f, x+1, y+1, color.Black)
 	text.Draw(screen, msg, f, x-1, y-1, color.Black)
 	text.Draw(screen, msg, f, x+1, y-1, color.Black)
 	text.Draw(screen, msg, f, x-1, y+1, color.Black)
-	
+
 	text.Draw(screen, msg, f, x, y, c)
 }
 
@@ -124,22 +123,23 @@ func calc_nodes_text_width() {
 }
 
 func create_control_menu_image() {
+
 	controlMenuImage = ebiten.NewImage(WIN_X, WIN_Y)
 	slip := 40
-	
+
 	if TRANSLATE {
 		drawTextWithOutline(controlMenuImage, "G - сгенерировать случайные плесени", NormalFont, 20, slip, color.White)
 		slip += 20
 		drawTextWithOutline(controlMenuImage, "Клик колеса мыши - убить плесени в радиусе 50", NormalFont, 20, slip, color.White)
 		slip += 30
 		drawTextWithOutline(controlMenuImage, "P - вкл/выкл паузу", NormalFont, 20, slip, color.White)
-		slip += 20			
+		slip += 20
 		drawTextWithOutline(controlMenuImage, "S - сохранить мир", NormalFont, 20, slip, color.White)
 		slip += 20
 		drawTextWithOutline(controlMenuImage, "L - загрузить мир", NormalFont, 20, slip, color.White)
 		slip += 20
 		drawTextWithOutline(controlMenuImage, "E - сохранить мир как большую картинку", NormalFont, 20, slip, color.White)
-		slip += 20		
+		slip += 20
 		drawTextWithOutline(controlMenuImage, "D - полностью удалить мир", NormalFont, 20, slip, color.White)
 		slip += 30
 		drawTextWithOutline(controlMenuImage, "Левый клик мыши - скопировать/вставить геном в буфер обмена", NormalFont, 20, slip, color.White)
@@ -157,7 +157,7 @@ func create_control_menu_image() {
 		drawTextWithOutline(controlMenuImage, "Mouse Wheel click - kill molds within a 50 radius", NormalFont, 20, slip, color.White)
 		slip += 30
 		drawTextWithOutline(controlMenuImage, "P - turn on/off pause", NormalFont, 20, slip, color.White)
-		slip += 20			
+		slip += 20
 		drawTextWithOutline(controlMenuImage, "S - save world", NormalFont, 20, slip, color.White)
 		slip += 20
 		drawTextWithOutline(controlMenuImage, "L - load world", NormalFont, 20, slip, color.White)
@@ -179,19 +179,21 @@ func create_control_menu_image() {
 	}
 }
 
-var energy_light = 16
+var ENERGY_LIGHT = 100
 
 var lightMapImage *ebiten.Image
 
 type LightNode struct {
-	Name  string
-	X, Y  int 
-	Power int
-	TextWidth int
+	Name		string
+	X, Y		int
+	Power		int
+	TextWidth	int
 }
+
 var nodes []LightNode
 
 func update_lightmap_image() {
+
 	if lightMapImage == nil {
 		lightMapImage = ebiten.NewImage(SIZE_X, SIZE_Y)
 	}
@@ -200,25 +202,26 @@ func update_lightmap_image() {
 
 	for x := 0; x < SIZE_X; x++ {
 		for y := 0; y < SIZE_Y; y++ {
+
 			idx := x*SIZE_Y + y
-			
-			local_light := min(int(energy_light), int(light_map[idx]))
-			color_val := local_light * 8
-			if color_val > 255 { color_val = 255 }
+
+			local_light := min(int(ENERGY_LIGHT), int(light_map[idx]))
+			color_val := local_light * 2
+			if color_val > 255 {
+				color_val = 255
+			}
 			bg_c := byte(color_val)
-			
+
 			pIdx := (y*SIZE_X + x) * 4
-			pixels[pIdx]   = bg_c
+			pixels[pIdx] = bg_c
 			pixels[pIdx+1] = bg_c
 			pixels[pIdx+2] = bg_c
 			pixels[pIdx+3] = 0xff
 		}
 	}
-	
+
 	lightMapImage.ReplacePixels(pixels)
 }
-
-
 
 type Bitset [2048]byte
 
@@ -249,14 +252,15 @@ func generate_name() [6]byte {
 		name[i] = consonants[rand.Intn(len(consonants))]
 		name[i+1] = vowels[rand.Intn(len(vowels))]
 	}
-	name[0] -= 32 
+
+	name[0] -= 32
 	return name
 }
-
 
 var mouse_gen Bitset
 
 var alphabet256 = []rune("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюяÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψωĄąĆćĘęŁłŃńŚśŹźŻżŠš")
+
 var revMap256 map[rune]byte
 
 func encodeBase256(data []byte) string {
@@ -280,34 +284,32 @@ func decodeBase256(s string) []byte {
 func compress_genome(gen *Bitset) string {
 	var buf bytes.Buffer
 	gz, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	gz.Write(gen[:]) 
-	gz.Close() 
-	
+	gz.Write(gen[:])
+	gz.Close()
+
 	return encodeBase256(buf.Bytes())
 }
 
 func decompress_genome(data string, gen *Bitset) error {
 	rawBytes := decodeBase256(data)
-	
+
 	gz, err := gzip.NewReader(bytes.NewReader(rawBytes))
 	if err != nil {
 		return err
 	}
 	defer gz.Close()
-	
+
 	_, err = io.ReadFull(gz, gen[:])
 	return err
 }
 
-
-
 type Cell struct {
-	mold uint32
-	time uint16
-	n    int16
-	dx   int8
-	dy   int8
-	spore bool
+	mold	uint32
+	time	uint16
+	n	int16
+	dx	int8
+	dy	int8
+	spore	bool
 }
 
 var cells []Cell
@@ -329,19 +331,22 @@ func mod_y(y int) int {
 }
 
 func sweep_cavities_background() {
+
 	for i := 0; i < MAX_MOLD; i++ {
 		temp_energies[i] = 0
 	}
 
 	bgWorkers := 2
 	var wg sync.WaitGroup
-	
+
 	chunkSizeX := SIZE_X / bgWorkers
 	for w := 0; w < bgWorkers; w++ {
 		startX := w * chunkSizeX
 		endX := (w + 1) * chunkSizeX
-		if w == bgWorkers-1 { endX = SIZE_X }
-		
+		if w == bgWorkers-1 {
+			endX = SIZE_X
+		}
+
 		wg.Add(1)
 		go func(s, e int) {
 			defer wg.Done()
@@ -350,17 +355,18 @@ func sweep_cavities_background() {
 				firstMoldIdx := -1
 				for y := 0; y < SIZE_Y; y++ {
 					if cells[base+y].mold != 0 {
-						firstMoldIdx = y; break
+						firstMoldIdx = y
+						break
 					}
 				}
 				if firstMoldIdx != -1 {
 					current_mold := cells[base+firstMoldIdx].mold
 					empty_start_offset := -1
 					for offset := 0; offset <= SIZE_Y; offset++ {
-						y := (firstMoldIdx + offset) & MASK_Y 
+						y := (firstMoldIdx + offset) & MASK_Y
 						idx := base + y
 						m := cells[idx].mold
-						
+
 						if m != 0 {
 							if empty_start_offset != -1 {
 								if current_mold == m {
@@ -378,11 +384,15 @@ func sweep_cavities_background() {
 							}
 							current_mold = m
 						} else {
-							if empty_start_offset == -1 { empty_start_offset = offset }
+							if empty_start_offset == -1 {
+								empty_start_offset = offset
+							}
 						}
 					}
 				} else {
-					for y := 0; y < SIZE_Y; y++ { cavity_map[base+y] = 0 }
+					for y := 0; y < SIZE_Y; y++ {
+						cavity_map[base+y] = 0
+					}
 				}
 			}
 		}(startX, endX)
@@ -393,8 +403,10 @@ func sweep_cavities_background() {
 	for w := 0; w < bgWorkers; w++ {
 		startY := w * chunkSizeY
 		endY := (w + 1) * chunkSizeY
-		if w == bgWorkers-1 { endY = SIZE_Y }
-		
+		if w == bgWorkers-1 {
+			endY = SIZE_Y
+		}
+
 		wg.Add(1)
 		go func(s, e int) {
 			defer wg.Done()
@@ -402,49 +414,54 @@ func sweep_cavities_background() {
 				firstMoldIdx := -1
 				for x := 0; x < SIZE_X; x++ {
 					if cells[x*SIZE_Y+y].mold != 0 {
-						firstMoldIdx = x; break
+						firstMoldIdx = x
+						break
 					}
 				}
 				if firstMoldIdx != -1 {
 					current_mold := cells[firstMoldIdx*SIZE_Y+y].mold
 					empty_start_offset := -1
-					
+
 					for offset := 0; offset <= SIZE_X; offset++ {
-						x := (firstMoldIdx + offset) & MASK_X 
+						x := (firstMoldIdx + offset) & MASK_X
 						idx := x*SIZE_Y + y
 						m := cells[idx].mold
-						
+
 						if m != 0 {
 							if empty_start_offset != -1 {
 								if current_mold == m {
 									for e_off := empty_start_offset; e_off < offset; e_off++ {
-										ex := (firstMoldIdx + e_off) & MASK_X 
+										ex := (firstMoldIdx + e_off) & MASK_X
 										eidx := ex*SIZE_Y + y
-										
+
 										if cavity_map[eidx] == current_mold {
-											local_light := min(int(energy_light), int(light_map[eidx]))
+											local_light := min(int(ENERGY_LIGHT), int(light_map[eidx]))
 											if local_light > 0 {
-												atomic.AddInt64(&temp_energies[current_mold], int64(local_light * 2))
+												atomic.AddInt64(&temp_energies[current_mold], int64(local_light))
 											}
 										} else {
-											cavity_map[eidx] = 0 
+											cavity_map[eidx] = 0
 										}
 									}
 								} else {
 									for e_off := empty_start_offset; e_off < offset; e_off++ {
 										ex := (firstMoldIdx + e_off) & MASK_X
-										cavity_map[ex*SIZE_Y + y] = 0
+										cavity_map[ex*SIZE_Y+y] = 0
 									}
 								}
 								empty_start_offset = -1
 							}
 							current_mold = m
 						} else {
-							if empty_start_offset == -1 { empty_start_offset = offset }
+							if empty_start_offset == -1 {
+								empty_start_offset = offset
+							}
 						}
 					}
 				} else {
-					for x := 0; x < SIZE_X; x++ { cavity_map[x*SIZE_Y+y] = 0 }
+					for x := 0; x < SIZE_X; x++ {
+						cavity_map[x*SIZE_Y+y] = 0
+					}
 				}
 			}
 		}(startY, endY)
@@ -460,25 +477,25 @@ func sweep_cavities_background() {
 	atomic.StoreInt32(&isSweeping, 0)
 }
 
-
 type Mold struct {
-	name [6]byte
-	genome Bitset
-	energy int64
-	leave bool
-	free bool
-	r, g, b byte
-	rc, gc, bc byte
-	cavity_energy int64
+	name		[6]byte
+	genome		Bitset
+	energy		int64
+	leave		bool
+	free		bool
+	r, g, b		byte
+	rc, gc, bc	byte
+	cavity_energy	int64
 }
+
 var molds [MAX_MOLD]Mold
 
 var workers_consumption [][]int64
 
-
 func init() {
+
 	rand.Seed(time.Now().UnixNano())
-	
+
 	NUM_WORKERS = runtime.NumCPU() - 2
 	if NUM_WORKERS < 1 {
 		NUM_WORKERS = 1
@@ -486,15 +503,15 @@ func init() {
 	if DEVELOPER {
 		fmt.Println("Потоков: ", NUM_WORKERS)
 	}
-	
+
 	win_size_x, win_size_y := ebiten.ScreenSizeInFullscreen()
-	WIN_X = min(WIN_X, win_size_x - 100)
-	WIN_Y = min(WIN_Y, win_size_y - 100)
-	if DEVELOPER { 
+	WIN_X = min(WIN_X, win_size_x-100)
+	WIN_Y = min(WIN_Y, win_size_y-100)
+	if DEVELOPER {
 		fmt.Println("Размеры экрана: ", win_size_x, win_size_y)
 		fmt.Println("Размеры окна: ", WIN_X, WIN_Y)
 	}
-	
+
 	if TRANSLATE {
 		text_string = "Программа запущена."
 	} else {
@@ -502,29 +519,31 @@ func init() {
 	}
 	text_time = 300
 
-	if DEVELOPER { show_inform_control = false}
-	
+	if DEVELOPER {
+		show_inform_control = false
+	}
+
 	for i := 0; i < MAX_MOLD; i++ {
 		molds[i].free = true
 		molds[i].leave = false
 	}
-	
+
 	cells = make([]Cell, SIZE_X*SIZE_Y)
 	for i := 0; i < SIZE_X*SIZE_Y; i++ {
 		cells[i].mold = 0
 	}
-	
+
 	cavity_map = make([]uint32, SIZE_X*SIZE_Y)
 	temp_energies = make([]int64, MAX_MOLD)
-	
+
 	generate_random_nodes()
-	generate_light_map()	
-	
+	generate_light_map()
+
 	revMap256 = make(map[rune]byte)
 	for i, r := range alphabet256 {
 		revMap256[r] = byte(i)
 	}
-	
+
 	workers_consumption = make([][]int64, NUM_WORKERS)
 	for i := 0; i < NUM_WORKERS; i++ {
 		workers_consumption[i] = make([]int64, MAX_MOLD)
@@ -532,71 +551,75 @@ func init() {
 }
 
 func generate_random_nodes() {
+
 	var biomeNames []string
 	if TRANSLATE {
 		biomeNames = []string{
-			"Уголок интроверта", "Северный пшик", "Рай для плесени", "Мечта мотылька", 
-			"Запретная лампа", "Ядерный сыр", "Умирающий пиксель", "Светящаяся лужа", 
-			"Укол зонтиком", "Проспект слизи", "Студенческий холодильник", "Кладбище контейнеров", 
-			"Мокрый носок", "Сгоревшая пицца", "Грязная клавиатура", "Великое ничто", 
-			"Осколок логики", "Тихий омут", "Бескрайняя лень", "Процедурное болото", 
-			"Драматический театр", "Центральная пробка", "Сосед с перфоратором", "Заблудший пиксель", 
-			"Ошибка 404", "Точка возрождения", "Одинокий пельмень", "Просроченный йогурт", 
-			"Прошлогодний салат", "Немытая кружка", "Забытый сыр", "Угол для наказаний", 
-			"Зона потери WiFi", "Чашка Петри Альфа", "Нижний интернет", "Подкроватный монстр", 
+			"Уголок интроверта", "Северный пшик", "Рай для плесени", "Мечта мотылька",
+			"Запретная лампа", "Ядерный сыр", "Умирающий пиксель", "Светящаяся лужа",
+			"Укол зонтиком", "Проспект слизи", "Студенческий холодильник", "Кладбище контейнеров",
+			"Мокрый носок", "Сгоревшая пицца", "Грязная клавиатура", "Великое ничто",
+			"Осколок логики", "Тихий омут", "Бескрайняя лень", "Процедурное болото",
+			"Драматический театр", "Центральная пробка", "Сосед с перфоратором", "Заблудший пиксель",
+			"Ошибка 404", "Точка возрождения", "Одинокий пельмень", "Просроченный йогурт",
+			"Прошлогодний салат", "Немытая кружка", "Забытый сыр", "Угол для наказаний",
+			"Зона потери WiFi", "Чашка Петри Альфа", "Нижний интернет", "Подкроватный монстр",
 			"Квантовая лужа", "Деление на ноль", "Кошачья лазерная указка", "Внезапный кипятильник",
 			"Разогнанный процессор",
 		}
 	} else {
 		biomeNames = []string{
-			"Introvert Corner", "Northern Poof", "Mold Paradise", "Moth's Dream", 
-			"The Forbidden Lamp", "Nuclear Cheese", "Dying Pixel", "Glowing Puddle", 
-			"Needle Point", "Slime Avenue", "Student's Fridge", "Tupperware Grave", 
-			"Wet Sock", "Burnt Pizza", "Dirty Keyboard", "The Great Nothing", 
-			"Shard of Logic", "Still Waters", "Endless Laziness", "Procedural Swamp", 
-			"Drama Theater", "Traffic Jam", "Noisy Neighbor", "Lost Pixel", 
-			"Error 404", "Spawn Point", "Lonely Dumpling", "Expired Yogurt", 
-			"Last Year's Salad", "Unwashed Mug", "Forgotten Cheese", "Timeout Corner", 
-			"WiFi Drop Zone", "Petri Dish Alpha", "The Lower Internet", "Underbed Monster", 
+			"Introvert Corner", "Northern Poof", "Mold Paradise", "Moth's Dream",
+			"The Forbidden Lamp", "Nuclear Cheese", "Dying Pixel", "Glowing Puddle",
+			"Needle Point", "Slime Avenue", "Student's Fridge", "Tupperware Grave",
+			"Wet Sock", "Burnt Pizza", "Dirty Keyboard", "The Great Nothing",
+			"Shard of Logic", "Still Waters", "Endless Laziness", "Procedural Swamp",
+			"Drama Theater", "Traffic Jam", "Noisy Neighbor", "Lost Pixel",
+			"Error 404", "Spawn Point", "Lonely Dumpling", "Expired Yogurt",
+			"Last Year's Salad", "Unwashed Mug", "Forgotten Cheese", "Timeout Corner",
+			"WiFi Drop Zone", "Petri Dish Alpha", "The Lower Internet", "Underbed Monster",
 			"Quantum Puddle", "Divided by Zero", "Cat's Laser Pointer", "Sudden Boiler",
 			"Overclocked CPU",
-		}		
+		}
 	}
-	
+
 	nodes = make([]LightNode, 40)
 	for i := 0; i < 40; i++ {
 		nodes[i] = LightNode{
-			Name:  biomeNames[i],
-			X:     rand.Intn(SIZE_X),
-			Y:     rand.Intn(SIZE_Y),
-			Power: 5 + rand.Intn(12),
+			Name:	biomeNames[i],
+			X:	rand.Intn(SIZE_X),
+			Y:	rand.Intn(SIZE_Y),
+			Power:	5 + rand.Intn(8),
 		}
 	}
 }
 
 func generate_light_map() {
+
 	light_map = make([]int8, SIZE_X*SIZE_Y)
 
 	type FastNode struct {
-		X, Y int
-		MaxDistSq  float64 
-		CoreDistSq float64 
-		LogMax     float64 
+		X, Y		int
+		MaxDistSq	float64
+		CoreDistSq	float64
+		LogMax		float64
 	}
-	
+
 	fastNodes := make([]FastNode, len(nodes))
 	for i, n := range nodes {
-		maxDist := float64(n.Power * 50) 
+
+		maxDist := float64(n.Power * 50)
 		maxDistSq := maxDist * maxDist
-		coreDist := float64(n.Power * 10) 
+
+		coreDist := float64(n.Power * 10)
 		coreDistSq := coreDist * coreDist
 
 		fastNodes[i] = FastNode{
-			X: n.X, 
-			Y: n.Y, 
-			MaxDistSq: maxDistSq,
-			CoreDistSq: coreDistSq,
-			LogMax: math.Log((maxDistSq - coreDistSq) + 1.0), 
+			X:		n.X,
+			Y:		n.Y,
+			MaxDistSq:	maxDistSq,
+			CoreDistSq:	coreDistSq,
+			LogMax:		math.Log((maxDistSq - coreDistSq) + 1.0),
 		}
 	}
 
@@ -606,17 +629,22 @@ func generate_light_map() {
 
 			for _, node := range fastNodes {
 				dx := abs(x - node.X)
-				if dx > SIZE_X/2 { dx = SIZE_X - dx }
+				if dx > SIZE_X/2 {
+					dx = SIZE_X - dx
+				}
 
 				dy := abs(y - node.Y)
-				if dy > SIZE_Y/2 { dy = SIZE_Y - dy }
+				if dy > SIZE_Y/2 {
+					dy = SIZE_Y - dy
+				}
 
 				distSq := float64(dx*dx + dy*dy)
 
 				if distSq < node.MaxDistSq {
-					decay := math.Log(distSq + 1.0) / node.LogMax
-					
-					nodeLight := 20 - int(20.0 * decay)
+
+					decay := math.Log(distSq+1.0) / node.LogMax
+
+					nodeLight := 100 - int(100.0*decay)
 
 					if nodeLight > maxLight {
 						maxLight = nodeLight
@@ -650,10 +678,9 @@ func min(a, b int) int {
 	return b
 }
 
-
 func save_world() {
 	if is_saving {
-		return 
+		return
 	}
 	is_saving = true
 
@@ -663,7 +690,7 @@ func save_world() {
 		text_string = "Saving world in background..."
 	}
 	text_time = world_time
-	
+
 	was_paused := pause
 	pause = true
 	time.Sleep(50 * time.Millisecond)
@@ -672,18 +699,18 @@ func save_world() {
 	copy(cellsCopy, cells)
 
 	moldsCopy := make([]Mold, len(molds))
-	copy(moldsCopy, molds[:]) 
-	
+	copy(moldsCopy, molds[:])
+
 	nodesCopy := make([]LightNode, len(nodes))
 	copy(nodesCopy, nodes)
 
 	wtCopy := int64(world_time)
-	elCopy := int64(energy_light)
+	elCopy := int64(ENERGY_LIGHT)
 
 	pause = was_paused
 
 	go func() {
-		defer func() { is_saving = false }() 
+		defer func() { is_saving = false }()
 
 		tmp_filename := "CuteMoldSave_tmp.gz"
 		file, err := os.Create(tmp_filename)
@@ -700,7 +727,7 @@ func save_world() {
 		binary.Write(gz, binary.LittleEndian, wtCopy)
 		binary.Write(gz, binary.LittleEndian, elCopy)
 		binary.Write(gz, binary.LittleEndian, lenNodes)
-		
+
 		gz.Write(nodesJSON)
 
 		cellsBytes := unsafe.Slice((*byte)(unsafe.Pointer(&cellsCopy[0])), len(cellsCopy)*int(unsafe.Sizeof(cellsCopy[0])))
@@ -726,7 +753,7 @@ func save_world() {
 func load_world() {
 	pause = true
 	time.Sleep(10 * time.Millisecond)
-	
+
 	file, err := os.Open("CuteMoldSave.gz")
 	if err != nil {
 		if TRANSLATE {
@@ -757,13 +784,14 @@ func load_world() {
 	binary.Read(gz, binary.LittleEndian, &wt)
 	binary.Read(gz, binary.LittleEndian, &el)
 	binary.Read(gz, binary.LittleEndian, &lenNodes)
-	
+
 	world_time = int(wt)
-	energy_light = int(el)
+	ENERGY_LIGHT = int(el)
 
 	nodesJSON := make([]byte, lenNodes)
 	io.ReadFull(gz, nodesJSON)
 	json.Unmarshal(nodesJSON, &nodes)
+
 	generate_light_map()
 
 	cellsBytes := unsafe.Slice((*byte)(unsafe.Pointer(&cells[0])), len(cells)*int(unsafe.Sizeof(cells[0])))
@@ -771,7 +799,7 @@ func load_world() {
 
 	moldsBytes := unsafe.Slice((*byte)(unsafe.Pointer(&molds[0])), len(molds)*int(unsafe.Sizeof(molds[0])))
 	io.ReadFull(gz, moldsBytes)
-	
+
 	if TRANSLATE {
 		text_string = "Мир загружен из сохранения CuteMoldSave.gz!"
 	} else {
@@ -779,14 +807,16 @@ func load_world() {
 	}
 	text_time = world_time
 
-	show_starting_text = false 
+	show_starting_text = false
 	pause = false
 }
 
 func export_map_to_png() {
-	if is_saving { return }
+	if is_saving {
+		return
+	}
 	is_saving = true
-	
+
 	if TRANSLATE {
 		text_string = "Идёт экспорт карты в PNG..."
 	} else {
@@ -796,38 +826,43 @@ func export_map_to_png() {
 
 	go func() {
 		defer func() { is_saving = false }()
-		
+
 		img := image.NewRGBA(image.Rect(0, 0, SIZE_X, SIZE_Y))
 
 		for x := 0; x < SIZE_X; x++ {
 			for y := 0; y < SIZE_Y; y++ {
+
 				idx := x*SIZE_Y + y
-				
+
 				pixIdx := (y*SIZE_X + x) * 4
 
 				if cells[idx].mold != 0 {
 					moldID := cells[idx].mold
-					
+
 					if cells[idx].spore && cells[idx].time > TIME_SPORE {
-						img.Pix[pixIdx]   = 255
+						img.Pix[pixIdx] = 255
 						img.Pix[pixIdx+1] = 255
 						img.Pix[pixIdx+2] = 255
 					} else {
-						img.Pix[pixIdx]   = molds[moldID].rc
+
+						img.Pix[pixIdx] = molds[moldID].rc
 						img.Pix[pixIdx+1] = molds[moldID].gc
 						img.Pix[pixIdx+2] = molds[moldID].bc
 					}
 				} else {
-					local_light := min(int(energy_light), int(light_map[idx]))
-					color_val := local_light * 8
-					if color_val > 255 { color_val = 255 }
+
+					local_light := min(int(ENERGY_LIGHT), int(light_map[idx]))
+					color_val := local_light * 2
+					if color_val > 255 {
+						color_val = 255
+					}
 					bg_c := byte(color_val)
-					
-					img.Pix[pixIdx]   = bg_c
+
+					img.Pix[pixIdx] = bg_c
 					img.Pix[pixIdx+1] = bg_c
 					img.Pix[pixIdx+2] = bg_c
 				}
-				
+
 				img.Pix[pixIdx+3] = 0xff
 			}
 		}
@@ -851,26 +886,27 @@ func export_map_to_png() {
 	}()
 }
 
-
 func found_new_mold(x int) int {
 	if x == -1 {
-		new_mold := MAX_MOLD-1
+
+		new_mold := MAX_MOLD - 1
 		for new_mold > 1 {
-			if molds[new_mold].free == true { 
+			if molds[new_mold].free == true {
 				molds[new_mold].free = false
 				return new_mold
 			}
 			new_mold--
 		}
 	} else {
+
 		chunkSize := SIZE_X / NUM_WORKERS
 		chunkX := x / chunkSize
 		if chunkX >= NUM_WORKERS {
 			chunkX = NUM_WORKERS - 1
 		}
-		
+
 		new_mold := chunkX
-		if new_mold == 0{
+		if new_mold == 0 {
 			new_mold = NUM_WORKERS
 		}
 
@@ -880,9 +916,9 @@ func found_new_mold(x int) int {
 				return new_mold
 			}
 			new_mold += NUM_WORKERS
-		}	
+		}
 	}
-	
+
 	if TRANSLATE {
 		text_string = "Паника! Слишком много плесеней!"
 	} else {
@@ -899,13 +935,13 @@ func generate_new_mold(x, y int) {
 		return
 	}
 
-	local_light := min(energy_light, int(light_map[idx]))
-	if local_light <= 8 {
+	local_light := min(ENERGY_LIGHT, int(light_map[idx]))
+	if local_light <= 30 {
 		return
 	}
 
 	new_mold := found_new_mold(-1)
-	
+
 	molds[new_mold].name = generate_name()
 	molds[new_mold].genome.RandomizeHalfZeros()
 	molds[new_mold].energy = int64(ENERGY_DAY)
@@ -915,13 +951,14 @@ func generate_new_mold(x, y int) {
 	molds[new_mold].rc = molds[new_mold].r
 	molds[new_mold].gc = molds[new_mold].g
 	molds[new_mold].bc = molds[new_mold].b
-	
+
 	cells[idx].mold = uint32(new_mold)
 	cells[idx].time = 0
 	cells[idx].n = 0
 	cells[idx].dx = 1
 	cells[idx].dy = 0
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
@@ -933,7 +970,7 @@ func load_genom(x, y int) {
 	}
 
 	new_mold := found_new_mold(-1)
-	
+
 	molds[new_mold].name = generate_name()
 	molds[new_mold].genome = mouse_gen
 	molds[new_mold].energy = int64(ENERGY_DAY)
@@ -943,13 +980,14 @@ func load_genom(x, y int) {
 	molds[new_mold].rc = molds[new_mold].r
 	molds[new_mold].gc = molds[new_mold].g
 	molds[new_mold].bc = molds[new_mold].b
-	
+
 	cells[idx].mold = uint32(new_mold)
-	cells[idx].time = 0 
-	cells[idx].n = 0 
-	cells[idx].dx = 1 
-	cells[idx].dy = 0 
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+	cells[idx].time = 0
+	cells[idx].n = 0
+	cells[idx].dx = 1
+	cells[idx].dy = 0
+
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
@@ -957,12 +995,12 @@ func create_new_mold(x, y int) {
 	idx := getCellIdx(x, y)
 	last_mold := cells[idx].mold
 	new_mold := found_new_mold(x)
-	
+
 	molds[new_mold].genome = molds[last_mold].genome
 	molds[new_mold].energy = int64(ENERGY_DAY)
 	molds[new_mold].leave = true
 	molds[new_mold].free = false
-	
+
 	if rand.Intn(MUTATE) == 0 {
 		molds[new_mold].name = generate_name()
 		molds[new_mold].genome.MutateOne()
@@ -970,54 +1008,63 @@ func create_new_mold(x, y int) {
 		molds[new_mold].rc = molds[new_mold].r
 		molds[new_mold].gc = molds[new_mold].g
 		molds[new_mold].bc = molds[new_mold].b
-		
+
 	} else {
 		molds[new_mold].name = molds[last_mold].name
 		molds[new_mold].r = molds[last_mold].r
-		molds[new_mold].g = molds[last_mold].g 
+		molds[new_mold].g = molds[last_mold].g
 		molds[new_mold].b = molds[last_mold].b
+
 		rInt := int(molds[new_mold].r) + rand.Intn(20) - 10
 		gInt := int(molds[new_mold].g) + rand.Intn(20) - 10
 		bInt := int(molds[new_mold].b) + rand.Intn(20) - 10
+
 		molds[new_mold].rc = byte(max(0, min(255, rInt)))
 		molds[new_mold].gc = byte(max(0, min(255, gInt)))
-		molds[new_mold].bc = byte(max(0, min(255, bInt)))	
+		molds[new_mold].bc = byte(max(0, min(255, bInt)))
 	}
-	
+
 	cells[idx].mold = uint32(new_mold)
 	cells[idx].time = 0
 	cells[idx].n = 0
-	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+
+	t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 	cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 }
 
 func add_cell(x, y, x2, y2, n int) {
-	idx := getCellIdx(x2,y2)
-	
-	if cells[idx].mold == 0 { 
-		cells[idx].mold = cells[getCellIdx(x,y)].mold
+	idx := getCellIdx(x2, y2)
+
+	if cells[idx].mold == 0 {
+		cells[idx].mold = cells[getCellIdx(x, y)].mold
 		cells[idx].n = int16(n)
 		cells[idx].time = 0
 		cells[idx].dx = int8(mod_x(x2-x+1) - 1)
 		cells[idx].dy = int8(mod_y(y2-y+1) - 1)
-		t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4+3)
+
+		t := molds[int(cells[idx].mold)].genome.Get(int(cells[idx].n)*4 + 3)
 		cells[idx].spore = (SPORE_N <= t && t <= SPORE_K)
 	}
 }
 
 func neighbor(x, y, dx, dy, dir int) (int, int) {
+
 	if (dx == 1 && dir == 0) || (dx == -1 && dir == 2) || (dy == 1 && dir == 1) {
 		return x, mod_y(y + 1)
 	}
+
 	if (dx == 1 && dir == 1) || (dy == 1 && dir == 2) || (dy == -1 && dir == 0) {
 		return mod_x(x + 1), y
 	}
+
 	if (dx == 1 && dir == 2) || (dx == -1 && dir == 0) || (dy == -1 && dir == 1) {
 		return x, mod_y(y - 1)
 	}
+
 	if (dx == -1 && dir == 1) || (dy == 1 && dir == 0) || (dy == -1 && dir == 2) {
 		return mod_x(x - 1), y
 	}
+
 	if TRANSLATE {
 		text_string = "Паника! Не могу найти моего соседа!"
 	} else {
@@ -1028,43 +1075,45 @@ func neighbor(x, y, dx, dy, dir int) (int, int) {
 }
 
 func growth_cell(x, y int) {
-	idx := getCellIdx(x, y) 
-	n := cells[idx].n       
-	
+	idx := getCellIdx(x, y)
+	n := cells[idx].n
+
 	for dir := 0; dir < 3; dir++ {
+
 		val := molds[int(cells[idx].mold)].genome.Get(int(n)*4 + dir)
-		
+
 		if val <= LEN_GROWTH {
+
 			next_n := (int(n) + int(val) - 27 + LEN_GENOME) & (LEN_GENOME - 1)
-			
+
 			x2, y2 := neighbor(x, y, int(cells[idx].dx), int(cells[idx].dy), dir)
 			add_cell(x, y, x2, y2, int(next_n))
 		}
 	}
 }
 
-
 func delete_all() {
+
 	pause = true
 	time.Sleep(50 * time.Millisecond)
-	
+
 	for index := 0; index < MAX_MOLD; index++ {
 		molds[index].leave = false
 	}
-	
+
 	for i := range cells {
 		cells[i].mold = 0
 	}
-	
+
 	generate_random_nodes()
 	generate_light_map()
-	
+
 	update_lightmap_image()
-	
+
 	calc_nodes_text_width()
-	
+
 	os.Remove("CuteMoldSave.gz")
-	
+
 	if TRANSLATE {
 		text_string = "Сохранение удалено. Новый мир сгенерирован!"
 	} else {
@@ -1077,10 +1126,11 @@ func delete_all() {
 
 func update() {
 	if !pause {
+
 		if atomic.CompareAndSwapInt32(&isSweeping, 0, 1) {
 			go sweep_cavities_background()
 		}
-	
+
 		var wg sync.WaitGroup
 		chunkSize := SIZE_X / NUM_WORKERS
 
@@ -1088,20 +1138,23 @@ func update() {
 			for i := 0; i < MAX_MOLD; i++ {
 				workers_consumption[w][i] = 0
 			}
+
 		}
 
 		for w := 0; w < NUM_WORKERS; w++ {
 			startX := w * chunkSize
 			endX := (w + 1) * chunkSize
-			if w == NUM_WORKERS-1 { endX = SIZE_X }
+			if w == NUM_WORKERS-1 {
+				endX = SIZE_X
+			}
 
 			wg.Add(1)
 			go func(s, e, worker_id int) {
 				defer wg.Done()
 				for x := s; x < e; x++ {
 					idx := x * SIZE_Y
-					
-					_ = cells[idx + SIZE_Y - 1] 
+
+					_ = cells[idx+SIZE_Y-1]
 
 					for y := 0; y < SIZE_Y; y++ {
 						if cells[idx].mold != 0 {
@@ -1110,9 +1163,9 @@ func update() {
 								consumption += int64(ENERGY_SPORE)
 							}
 							consumption = consumption * int64(cells[idx].time/TIME_CELL)
-							
-							workers_consumption[worker_id][cells[idx].mold] += consumption						
-							
+
+							workers_consumption[worker_id][cells[idx].mold] += consumption
+
 							cells[idx].time++
 						}
 						idx++
@@ -1126,11 +1179,12 @@ func update() {
 			if !molds[index].leave {
 				molds[index].free = true
 			} else {
+
 				var total_loss int64 = 0
 				for w := 0; w < NUM_WORKERS; w++ {
 					total_loss += workers_consumption[w][index]
 				}
-				
+
 				molds[index].energy -= total_loss
 				molds[index].energy += molds[index].cavity_energy
 
@@ -1153,16 +1207,19 @@ func update() {
 				for x := s; x < e; x++ {
 					idx := x * SIZE_Y
 
-					_ = cells[idx + SIZE_Y - 1]
+					_ = cells[idx+SIZE_Y-1]
 
 					for y := 0; y < SIZE_Y; y++ {
+
 						if cells[idx].mold != 0 {
-							if molds[int(cells[idx].mold)].leave {	
+							if molds[int(cells[idx].mold)].leave {
+
 								if cells[idx].time > 0 {
 									growth_cell(x, y)
 								}
 							} else {
-								if cells[idx].spore && cells[idx].time >= TIME_SPORE{ 
+
+								if cells[idx].spore && cells[idx].time >= TIME_SPORE {
 									create_new_mold(x, y)
 								} else {
 									cells[idx].mold = 0
@@ -1174,18 +1231,19 @@ func update() {
 				}
 			}(startX, endX)
 		}
-		wg.Wait()		
+		wg.Wait()
 	}
 }
 
 func key_press() {
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyG) {
-		for i := 0; i < 10000; i++ {		
+		for i := 0; i < 10000; i++ {
 			generate_new_mold(rand.Intn(SIZE_X), rand.Intn(SIZE_Y))
 		}
 		show_starting_text = false
 	}
-	
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
 		pause = !pause
 	}
@@ -1193,9 +1251,9 @@ func key_press() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		save_world()
 	}
-	
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-	 	load_world()
+		load_world()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
@@ -1205,7 +1263,7 @@ func key_press() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyI) {
 		show_inform_control = !show_inform_control
 	}
-	
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
 		show_inform_technical = !show_inform_technical
 	}
@@ -1213,42 +1271,46 @@ func key_press() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyH) && DEVELOPER {
 		show_world = !show_world
 	}
-	
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyM) && DEVELOPER {
 		show_light_map = !show_light_map
 	}
-	
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyE) {
 		export_map_to_png()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyF) && DEVELOPER {
+
 		fmt.Println("Данные")
 		fmt.Println("FPS: ", ebiten.CurrentFPS())
 	}
 }
 
 func mouse_click() {
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if 0 <= x && x < WIN_X && 0 <= y && y < WIN_Y {
+
 			x = mod_x(zoom_x + int(x/zoom))
 			y = mod_y(zoom_y + int(y/zoom))
-			
-			
-			if cells[getCellIdx(x,y)].mold != 0 {
-				compressed := compress_genome(&molds[int(cells[getCellIdx(x,y)].mold)].genome)
+
+			if cells[getCellIdx(x, y)].mold != 0 {
+
+				compressed := compress_genome(&molds[int(cells[getCellIdx(x, y)].mold)].genome)
 				clipboard.WriteAll(compressed)
-				
+
 				if TRANSLATE {
-					text_string = "Геном '" + string(molds[int(cells[getCellIdx(x,y)].mold)].name[:]) + "' скопирован."
+					text_string = "Геном '" + string(molds[int(cells[getCellIdx(x, y)].mold)].name[:]) + "' скопирован."
 				} else {
-					text_string = "Genome '" + string(molds[int(cells[getCellIdx(x,y)].mold)].name[:]) + "' copied."
+					text_string = "Genome '" + string(molds[int(cells[getCellIdx(x, y)].mold)].name[:]) + "' copied."
 				}
-				text_time = world_time				
+				text_time = world_time
 			} else {
+
 				save, _ := clipboard.ReadAll()
-				
+
 				err := decompress_genome(save, &mouse_gen)
 				if err == nil {
 					load_genom(x, y)
@@ -1257,7 +1319,7 @@ func mouse_click() {
 					} else {
 						text_string = "Genome loaded and planted!"
 					}
-					text_time = world_time	
+					text_time = world_time
 					show_starting_text = false
 				} else {
 					if TRANSLATE {
@@ -1268,7 +1330,7 @@ func mouse_click() {
 					text_time = world_time
 				}
 			}
-			
+
 		} else {
 			if TRANSLATE {
 				text_string = "Клик вне мира."
@@ -1282,7 +1344,7 @@ func mouse_click() {
 	if !camera_flag {
 		_, z := ebiten.Wheel()
 		x, y := ebiten.CursorPosition()
-		
+
 		zoom_x = mod_x(zoom_x + int(x/zoom))
 		zoom_y = mod_y(zoom_y + int(y/zoom))
 
@@ -1297,35 +1359,40 @@ func mouse_click() {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
 		camera_flag = true
 		x, y := ebiten.CursorPosition()
+
 		camera_x = mod_x(zoom_x + int(x/zoom))
 		camera_y = mod_y(zoom_y + int(y/zoom))
 	}
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
 		x, y := ebiten.CursorPosition()
+
 		zoom_x = mod_x(camera_x - int(x/zoom))
 		zoom_y = mod_y(camera_y - int(y/zoom))
 	} else {
 		camera_flag = false
 	}
-	
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonMiddle) {
 		x, y := ebiten.CursorPosition()
 		if 0 <= x && x < WIN_X && 0 <= y && y < WIN_Y {
+
 			center_x := mod_x(zoom_x + int(x/zoom))
 			center_y := mod_y(zoom_y + int(y/zoom))
-			
-			radius := 50 
+
+			radius := 50
 			rSq := radius * radius
 
 			for dx := -radius; dx <= radius; dx++ {
 				for dy := -radius; dy <= radius; dy++ {
+
 					if dx*dx+dy*dy <= rSq {
+
 						nx := mod_x(center_x + dx)
 						ny := mod_y(center_y + dy)
-						
+
 						idx := getCellIdx(nx, ny)
-						
-						molds[cells[idx].mold].leave = false		
+
+						molds[cells[idx].mold].leave = false
 
 						cells[idx].spore = false
 						cells[idx].mold = 0
@@ -1344,13 +1411,14 @@ func mouse_click() {
 }
 
 func (g *Game) Update() error {
+
 	if ebiten.IsWindowMinimized() {
 		return nil
 	}
-	
+
 	mouse_click()
 	key_press()
-	
+
 	if atomic.CompareAndSwapInt32(&isUpdating, 0, 1) {
 		go func() {
 			update()
@@ -1361,7 +1429,8 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func (g *Game) getLightAtMouse() int {	
+func (g *Game) getLightAtMouse() int {
+
 	mx, my := ebiten.CursorPosition()
 
 	worldX := mx / zoom
@@ -1374,20 +1443,22 @@ func (g *Game) getLightAtMouse() int {
 	finalY := mod_y(worldY + zoom_y)
 
 	idx := finalX*SIZE_Y + finalY
-	
-	return min(energy_light, int(light_map[idx]))
+
+	return min(ENERGY_LIGHT, int(light_map[idx]))
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+
 	if ebiten.IsWindowMinimized() {
 		return
 	}
 
 	if show_world {
+
 		if g.pixels == nil {
 			g.pixels = make([]byte, WIN_X*WIN_Y*4)
 		}
-		
+
 		if g.moldsScreen == nil {
 			g.moldsScreen = ebiten.NewImage(WIN_X, WIN_Y)
 		}
@@ -1398,73 +1469,74 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		limitY := int(WIN_Y / zoom)
 
 		var wg sync.WaitGroup
-		chunkSize := limitX / NUM_WORKERS 
+		chunkSize := limitX / NUM_WORKERS
 		if chunkSize == 0 {
 			chunkSize = 1
 		}
 
 		for w := 0; w < NUM_WORKERS; w++ {
 			wg.Add(1)
-			
+
 			startX := w * chunkSize
 			endX := (w + 1) * chunkSize
-			
+
 			if w == NUM_WORKERS-1 {
 				endX = limitX
 			}
 
 			go func(startX, endX int) {
 				defer wg.Done()
-				
+
 				for x := startX; x < endX; x++ {
 					baseX := x * zoom
 					x0 := mod_x(x + zoom_x)
-					
-					_ = cells[x0*SIZE_Y + SIZE_Y - 1]
-					
+
+					_ = cells[x0*SIZE_Y+SIZE_Y-1]
+
 					y0 := mod_y(zoom_y)
-					
+
 					for y := 0; y < limitY; y++ {
 						baseY := y * zoom
+
 						idx := x0*SIZE_Y + y0
-						
+
 						if cells[idx].mold != 0 {
 							moldID := cells[idx].mold
-							
+
 							color_r := molds[moldID].rc
 							color_g := molds[moldID].gc
 							color_b := molds[moldID].bc
-							
+
 							isSpore := cells[idx].spore
 							var spore_color byte = 0
 							if isSpore && cells[idx].time > TIME_SPORE {
 								spore_color = 255
 							}
-							
+
 							for j := 0; j < zoom; j++ {
-								pic := ((baseY + j)*WIN_X + baseX) * 4
-								
+								pic := ((baseY+j)*WIN_X + baseX) * 4
+
 								if isSpore {
 									for i := 0; i < zoom; i++ {
 										if j >= 2 && j < zoom-1 && i >= 2 && i < zoom-1 {
-											g.pixels[pic]   = spore_color
+											g.pixels[pic] = spore_color
 											g.pixels[pic+1] = spore_color
 											g.pixels[pic+2] = spore_color
 										} else {
-											g.pixels[pic]   = color_r
+											g.pixels[pic] = color_r
 											g.pixels[pic+1] = color_g
 											g.pixels[pic+2] = color_b
 										}
 										g.pixels[pic+3] = 0xff
-										pic += 4 
+										pic += 4
 									}
 								} else {
 									for i := 0; i < zoom; i++ {
-										g.pixels[pic]   = color_r
+										g.pixels[pic] = color_r
 										g.pixels[pic+1] = color_g
 										g.pixels[pic+2] = color_b
 										g.pixels[pic+3] = 0xff
-										pic += 4 
+										pic += 4
 									}
 								}
 							}
@@ -1477,32 +1549,36 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				}
 			}(startX, endX)
 		}
-		
-		wg.Wait()
 
+		wg.Wait()
 
 		g.moldsScreen.ReplacePixels(g.pixels)
 
 		if show_light_map {
+
 			for i := 0; i < 2; i++ {
 				for j := 0; j < 2; j++ {
 					op := &ebiten.DrawImageOptions{}
-					op.GeoM.Translate(float64(-zoom_x + i*SIZE_X), float64(-zoom_y + j*SIZE_Y))
+
+					op.GeoM.Translate(float64(-zoom_x+i*SIZE_X), float64(-zoom_y+j*SIZE_Y))
+
 					op.GeoM.Scale(float64(zoom), float64(zoom))
 					screen.DrawImage(lightMapImage, op)
 				}
 			}
 		} else {
+
 			screen.Fill(color.Black)
 		}
 
 		screen.DrawImage(g.moldsScreen, &ebiten.DrawImageOptions{})
-		
 
 		if show_light_map {
+
 			biomeColor := color.RGBA{80, 200, 150, 255}
 
 			for _, b := range nodes {
+
 				dx := (b.X - zoom_x) & MASK_X
 				dy := (b.Y - zoom_y) & MASK_Y
 
@@ -1527,23 +1603,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			var infoText []string
 			if !TRANSLATE {
 				infoText = []string{
-				"The mold gets energy from the empty cells it has surrounded.",
-				"The longer the mold lives, the more energy it consumes.",
-				"When its energy runs out, the mold dies.",
-				"New molds emerge from its spores with the same genome and a possible point mutation.",
-				"Spores require time to mature: mature spores are white, while immature ones are black.",
-				" ",
-				"Press G to generate new molds.",
+					"The mold gets energy from the empty cells it has surrounded.",
+					"The longer the mold lives, the more energy it consumes.",
+					"When its energy runs out, the mold dies.",
+					"New molds emerge from its spores with the same genome and a possible point mutation.",
+					"Spores require time to mature: mature spores are white, while immature ones are black.",
+					" ",
+					"Press G to generate new molds.",
 				}
 			} else {
 				infoText = []string{
-				"Плесень получает энергию от пустых клеток, которые она окружила.",
-				"Чем дольше живёт плесень, тем больше энергии она потребляет.",
-				"Когда энергия заканчивается, плесень умирает.",
-				"Из её спор появляются новые плесени с таким же геномом и возможной точечной мутацией.",
-				"Споры требуют время на созревание: созервшие споры белые, несозревшие - черные.",
-				" ",
-				"Нажми G чтобы сгенерировать новые плесени.",
+					"Плесень получает энергию от пустых клеток, которые она окружила.",
+					"Чем дольше живёт плесень, тем больше энергии она потребляет.",
+					"Когда энергия заканчивается, плесень умирает.",
+					"Из её спор появляются новые плесени с таким же геномом и возможной точечной мутацией.",
+					"Споры требуют время на созревание: созервшие споры белые, несозревшие - черные.",
+					" ",
+					"Нажми G чтобы сгенерировать новые плесени.",
 				}
 			}
 
@@ -1552,13 +1628,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			startY := int(WIN_Y/2) - (len(infoText)*lineHeight)/2 - 40
 
 			for i, line := range infoText {
+
 				bounds := text.BoundString(NormalFont, line)
 				textWidth := bounds.Dx()
-				
+
 				x := (WIN_X - textWidth) / 2
-				
+
 				y := startY + (i * lineHeight)
-				
+
 				text.Draw(screen, line, NormalFont, x, y, color.White)
 			}
 		}
@@ -1574,14 +1651,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if show_inform_control && controlMenuImage != nil {
 			op := &ebiten.DrawImageOptions{}
 			screen.DrawImage(controlMenuImage, op)
-		}		
-		
-		if show_inform_technical {	
+		}
+
+		if show_inform_technical {
 			mx, my := ebiten.CursorPosition()
-			currentLight := max(g.getLightAtMouse(),0)
+			currentLight := max(g.getLightAtMouse(), 0)
 			text.Draw(screen, fmt.Sprint(currentLight), NormalFont, mx+15, my+15, color.White)
 		}
 	} else {
+
 		if TRANSLATE {
 			text.Draw(screen, "Нажми H чтобы показать мир.", NormalFont, WIN_X/2-150, WIN_Y/2, color.White)
 		} else {
@@ -1591,6 +1669,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+
 	if outsideWidth <= 0 || outsideHeight <= 0 {
 		return 1, 1
 	}
@@ -1598,6 +1677,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
+
 	rand.Seed(time.Now().UnixNano())
 
 	ebiten.SetWindowSize(WIN_X, WIN_Y)
@@ -1612,9 +1692,9 @@ func main() {
 
 	tt, _ := opentype.Parse(fonts.MPlus1pRegular_ttf)
 	NormalFont, _ = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    20,
-		DPI:     72,
-		Hinting: font.HintingFull,
+		Size:		20,
+		DPI:		72,
+		Hinting:	font.HintingFull,
 	})
 
 	create_control_menu_image()
@@ -1625,7 +1705,7 @@ func main() {
 	} else {
 		update_lightmap_image()
 	}
-	
+
 	calc_nodes_text_width()
 
 	game := &Game{}
