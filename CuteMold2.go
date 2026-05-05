@@ -32,7 +32,7 @@ import (
 
 const (
 	DEVELOPER	= false
-	TRANSLATE	= false
+	TRANSLATE	= true
 
 	SIZE_X	= 4096
 	SIZE_Y	= 4096
