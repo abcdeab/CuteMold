@@ -130,7 +130,7 @@ func create_control_menu_image() {
 	if TRANSLATE {
 		drawTextWithOutline(controlMenuImage, "G - сгенерировать случайные плесени", NormalFont, 20, slip, color.White)
 		slip += 20
-		drawTextWithOutline(controlMenuImage, "Клик колеса мыши - убить плесени в радиусе 50", NormalFont, 20, slip, color.White)
+		drawTextWithOutline(controlMenuImage, "Клик колеса мыши - убить плесени в радиусе 100", NormalFont, 20, slip, color.White)
 		slip += 30
 		drawTextWithOutline(controlMenuImage, "P - вкл/выкл паузу", NormalFont, 20, slip, color.White)
 		slip += 20
@@ -154,7 +154,7 @@ func create_control_menu_image() {
 	} else {
 		drawTextWithOutline(controlMenuImage, "G - generate random molds", NormalFont, 20, slip, color.White)
 		slip += 20
-		drawTextWithOutline(controlMenuImage, "Mouse Wheel click - kill molds within a 50 radius", NormalFont, 20, slip, color.White)
+		drawTextWithOutline(controlMenuImage, "Mouse Wheel click - kill molds within a 100 radius", NormalFont, 20, slip, color.White)
 		slip += 30
 		drawTextWithOutline(controlMenuImage, "P - turn on/off pause", NormalFont, 20, slip, color.White)
 		slip += 20
@@ -1372,7 +1372,7 @@ func mouse_click() {
 		camera_flag = false
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonMiddle) {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
 		x, y := ebiten.CursorPosition()
 		if 0 <= x && x < WIN_X && 0 <= y && y < WIN_Y {
 
@@ -1392,7 +1392,7 @@ func mouse_click() {
 
 						idx := getCellIdx(nx, ny)
 
-						molds[cells[idx].mold].leave = false
+						molds[cells[idx].mold].energy = -10000
 
 						cells[idx].spore = false
 						cells[idx].mold = 0
